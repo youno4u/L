@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TULIP: 제한적 속죄 - 스크린</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;700;900&display=swap');
+        body { font-family: 'Noto Sans KR', sans-serif; background-color: #0f172a; color: white; margin: 0; min-height: 100vh; overflow: hidden; transition: background-color 1s; }
+        
+        .rank-bar { transition: all 0.3s ease-out; }
+        
+        /* 피 내리는 애니메이션 */
+        @keyframes rain { 0% { transform: translateY(-100px); opacity: 1; } 100% { transform: translateY(1200px); opacity: 0; } }
+        .blood-drop { position: absolute; font-size: 3rem; color: #ef4444; text-shadow: 0 0 10px rgba(239,68,68,0.8); animation: rain linear infinite; }
+        
+        /* 속죄 화면 이펙트 */
+        .holy-light { position: absolute; inset: 0; background: radial-gradient(circle, rgba(234,179,8,0.3) 0%, rgba(15,23,42,1) 80%); animation: pulse 2s infinite alternate; pointer-events: none; }
+        @keyframes pulse { from { opacity: 0.5; } to { opacity: 1; } }
+    </style>
+</head>
+<body class="min-h-screen w-full flex flex-col items-center p-8 relative">
+
+    <div id="disp-header" class="text-center w-full mt-4 mb-8 z-20">
+        <h2 class="text-5xl font-black text-red-500 drop-shadow-md mb-4 tracking-widest uppercase">
+            TU<span class="text-6xl text-red-400">L</span>IP : Limited Atonement
+        </h2>
+        <p class="text-3xl text-slate-300 font-bold" id="disp-subtitle">예수님의 피는 아무나 걸리라고 뿌려진 것인가?</p>
+    </div>
+
+    <!-- 1. 보편 속죄 (행위) - 랭킹 보드 -->
+    <div id="disp-ranking-area" class="w-full max-w-5xl flex-grow flex flex-col z-20 transition-all duration-1000">
+        <div class="flex justify-between items-end mb-4 px-4 border-b-2 border-slate-700 pb-2">
+            <span class="text-2xl font-black text-slate-300" id="disp-rank-title">나의 행위로 구원(100%)을 채울 수 있는가?</span>
+            <span class="text-lg text-slate-500">참가자: <span id="disp-count" class="text-white font-bold">0</span>명</span>
+        </div>
+        
+        <div id="disp-leaderboard" class="flex flex-col gap-3">
+            <div class="text-center text-slate-500 mt-20 text-2xl font-bold animate-pulse">대기 중...</div>
+        </div>
+    </div>
+
+    <!-- 피 내리는 효과 컨테이너 -->
+    <div id="rain-container" class="absolute inset-0 z-10 overflow-hidden pointer-events-none"></div>
+
+    <!-- 2. 속죄 (전원 구원) 오버레이 -->
+    <div id="disp-limited-overlay" class="hidden absolute inset-0 bg-slate-900 bg-opacity-95 z-30 flex-col items-center pt-32 p-10 overflow-y-auto">
+        <div class="holy-light"></div>
+        <h1 class="text-7xl font-black text-yellow-400 mb-6 drop-shadow-[0_0_30px_rgba(234,179,8,0.8)] z-40">
+            TETELESTAI (다 이루었다)
+        </h1>
+        
+        <div class="mt-10 text-4xl text-white font-black text-center leading-relaxed z-40">
+            인간의 노력(기울기)이 한계에 부딪혀 마비된 순간,<br>
+            <span class="text-red-400 text-5xl mt-6 block">생명책에 기록된 당신을 향해<br>완벽하게 타겟팅된 은혜가 꽂혔습니다!</span>
+        </div>
+        
+        <div class="mt-20 text-2xl text-slate-400 font-bold text-center z-40 bg-black p-8 rounded-2xl border border-slate-700">
+            "내 양은 내 음성을 들으며 나는 그들을 알며 그들은 나를 따르느니라" (요 10:27)<br>
+            십자가의 보혈은 100%를 향한 여러분의 노력이 아니라, 처음부터 여러분을 100% 구원하는 능력이었습니다.
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const myFirebaseConfig = {
+            apiKey: "AIzaSyCfyjgtiDVD4Wsd9iGb9tEdrOGFYxxN2Tw",
+            authDomain: "kingdomgenius.firebaseapp.com",
+            projectId: "kingdomgenius",
+            storageBucket: "kingdomgenius.firebasestorage.app",
+            messagingSenderId: "385557748196",
+            appId: "1:385557748196:web:457b999a38e4982f188ff1"
+        };
+        
+        let app, auth, db, stateDocRef, playersColRef;
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+        if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+            app = initializeApp(JSON.parse(__firebase_config)); db = getFirestore(app);
+            stateDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'tulip_l_state', 'main');
+            playersColRef = collection(db, 'artifacts', appId, 'public', 'data', 'tulip_l_players');
+        } else {
+            app = initializeApp(myFirebaseConfig); db = getFirestore(app);
+            stateDocRef = doc(db, 'kingdom_genius_games', 'tulip_l_room', 'data', 'state');
+            playersColRef = collection(db, 'kingdom_genius_games', 'tulip_l_room', 'players');
+        }
+        auth = getAuth(app);
+        
+        window.gameState = null;
+        window.playersData = {};
+
+        signInAnonymously(auth);
+        onAuthStateChanged(auth, (user) => { if(user) setupRealtimeListeners(user); });
+
+        async function setupRealtimeListeners(user) {
+            if (!user) return;
+            onSnapshot(stateDocRef, (docSnap) => {
+                if (docSnap.exists()) { window.gameState = docSnap.data(); updateDisplayUI(); }
+            });
+            onSnapshot(playersColRef, (querySnapshot) => {
+                window.playersData = {};
+                querySnapshot.forEach((doc) => { window.playersData[doc.id] = doc.data(); });
+                updateDisplayUI();
+            });
+        }
+
+        let rainInterval;
+        function setRainIntensity(level) {
+            clearInterval(rainInterval);
+            const container = document.getElementById('rain-container');
+            container.innerHTML = '';
+            
+            if(level === 0) return;
+            
+            let count, duration;
+            if(level === 1) { count = 10; duration = '3s'; }
+            else if(level === 2) { count = 30; duration = '2s'; }
+            else if(level === 3) { count = 80; duration = '1s'; }
+            else if(level === 4) { count = 200; duration = '0.3s'; } // 폭우
+            
+            for(let i=0; i<count; i++) {
+                let drop = document.createElement('i');
+                drop.className = 'fas fa-tint blood-drop';
+                drop.style.left = Math.random() * 100 + 'vw';
+                drop.style.animationDuration = duration;
+                drop.style.animationDelay = Math.random() * 2 + 's';
+                drop.style.transform = `scale(${Math.random() * 0.5 + 0.5})`;
+                container.appendChild(drop);
+            }
+        }
+
+        function updateDisplayUI() {
+            const state = window.gameState;
+            if(!state) return;
+            
+            const pKeys = Object.keys(window.playersData || {});
+            document.getElementById('disp-count').innerText = pKeys.length;
+
+            const phase = state.phase;
+            const subtitle = document.getElementById('disp-subtitle');
+            const limitedOverlay = document.getElementById('disp-limited-overlay');
+            const rankArea = document.getElementById('disp-ranking-area');
+            const rankTitle = document.getElementById('disp-rank-title');
+            
+            limitedOverlay.classList.add('hidden');
+            rankArea.classList.remove('hidden');
+
+            if(phase === 'lobby') {
+                subtitle.innerText = "예수님의 피는 아무나 걸리라고 뿌려진 것인가?";
+                setRainIntensity(0);
+            }
+            else if(phase === 's1' || phase === 's2' || phase === 's3' || phase === 's4') {
+                subtitle.innerHTML = `<span class='text-orange-400'>스마트폰을 기울여서 예수님의 피를 받아내라! (단계: ${phase})</span>`;
+                
+                if(phase === 's1') setRainIntensity(1);
+                if(phase === 's2') setRainIntensity(2);
+                if(phase === 's3') setRainIntensity(3);
+                if(phase === 's4') {
+                    setRainIntensity(4);
+                    rankTitle.innerText = "인간의 한계 체감 (불가능)";
+                    rankTitle.className = "text-3xl font-black text-red-500 animate-pulse";
+                }
+
+                let ranking = pKeys.map(uid => ({ name: window.playersData[uid].name, score: window.playersData[uid].score || 0 }));
+                ranking.sort((a,b) => b.score - a.score);
+                const top10 = ranking.slice(0, 10);
+                
+                // 🔥 이제 100점을 만점(100%)으로 고정하여 화면에 표시합니다.
+                if(top10.length > 0) {
+                    let html = top10.map((r, idx) => {
+                        let widthPct = Math.max((r.score / 100) * 100, 5); // 100 기준 퍼센트 계산
+                        let color = idx === 0 ? 'bg-red-500' : 'bg-slate-600';
+                        if(r.score >= 100) color = 'bg-yellow-500'; // 100% 달성시 색상 변경
+
+                        return `
+                            <div class="flex items-center w-full bg-slate-800 rounded-xl p-3 border border-slate-700">
+                                <div class="w-16 text-2xl font-black text-slate-400 text-center">${idx+1}</div>
+                                <div class="w-48 text-2xl font-bold text-white truncate px-4">${r.name}</div>
+                                <div class="flex-grow h-10 bg-slate-900 rounded-full overflow-hidden">
+                                    <div class="${color} h-full rank-bar rounded-full flex items-center justify-end px-4 text-white font-black" style="width: ${widthPct}%; min-width: 4rem;">${r.score}%</div>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                    document.getElementById('disp-leaderboard').innerHTML = html;
+                }
+            }
+            else if(phase === 's5') {
+                subtitle.innerText = "";
+                setRainIntensity(0); // 비 멈춤
+                rankArea.classList.add('hidden');
+                
+                document.body.style.backgroundColor = '#1e1b4b'; // 살짝 어둡고 붉은 톤으로 분위기 전환
+                
+                limitedOverlay.classList.remove('hidden');
+                limitedOverlay.classList.add('flex');
+            }
+        }
+    </script>
+</body>
+</html>
