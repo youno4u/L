@@ -174,7 +174,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, setDoc, collection, onSnapshot, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // 파이어베이스 설정
         const myFirebaseConfig = {
@@ -213,6 +213,7 @@
         let gameLoopId = null;
         let lastDbSync = 0;
         let isPlaying = false;
+        let graceTimeout = null; // 5단계 멘트 지연용 타이머
         
         // 캔버스 사이즈 조정
         function resizeCanvas() {
@@ -224,9 +225,9 @@
         // 난이도 설정 (spawnChance: 프레임당 생성확률, speed: 떨어지는 속도(%/프레임), penalty: 놓쳤을때 깎이는 점수)
         // 1~3단계는 피가 아주 적게 떨어지고 느려서 쉽습니다.
         const diffConfig = {
-            's1': { spawnChance: 0.015, speed: 0.4, penalty: 2 }, // 아주 쉬움
-            's2': { spawnChance: 0.03, speed: 0.6, penalty: 4 },  // 쉬움
-            's3': { spawnChance: 0.06, speed: 0.9, penalty: 6 },  // 약간 어려움
+            's1': { spawnChance: 0.015, speed: 0.4, penalty: 0.2 }, // 패널티 대폭 완화
+            's2': { spawnChance: 0.03, speed: 0.6, penalty: 0.2 },  
+            's3': { spawnChance: 0.06, speed: 0.9, penalty: 0.2 },  
             's4': { spawnChance: 0.8, speed: 1.5, penalty: 2 },   // 멘붕 (엄청난 양의 피)
             's5': { spawnChance: 0.5, speed: 1.2, penalty: 0 }    // 은혜 채워짐
         };
@@ -259,6 +260,15 @@
                 window.playersData = {};
                 querySnapshot.forEach((doc) => { window.playersData[doc.id] = doc.data(); });
                 updateUIBasedOnRole();
+                
+                // 플레이어인데 내 데이터가 사라졌다면(GM 전체 초기화 시) 로그인 화면으로 강퇴
+                if (window.myRole === 'player' && isPlaying && !window.playersData[window.myUid]) {
+                    alert("게임이 초기화되어 대기실로 이동합니다.");
+                    window.myRole = null;
+                    isPlaying = false;
+                    if(gameLoopId) { cancelAnimationFrame(gameLoopId); gameLoopId = null; }
+                    switchScreen('screen-login');
+                }
             });
         }
 
@@ -465,6 +475,9 @@
                 graceOverlay.classList.remove('flex');
                 gameArea.classList.remove('shaking');
                 cupContainer.classList.remove('hidden');
+                
+                // 이전 딜레이 타이머가 있다면 초기화
+                if(graceTimeout) clearTimeout(graceTimeout);
 
                 if (phase === 'lobby') {
                     instTitle.innerText = "게임 대기 중"; instTitle.className = "text-2xl font-black text-slate-400 drop-shadow-md";
@@ -481,8 +494,14 @@
                 }
                 else if (phase === 's5') {
                     instTitle.innerText = ""; instDesc.innerText = "";
-                    graceOverlay.classList.remove('hidden');
-                    graceOverlay.classList.add('flex');
+                    
+                    // 5단계: 은혜가 빨려들어가는 것을 4초간 충분히 보여준 뒤 멘트 표시
+                    graceTimeout = setTimeout(() => {
+                        if(window.gameState.phase === 's5') {
+                            graceOverlay.classList.remove('hidden');
+                            graceOverlay.classList.add('flex');
+                        }
+                    }, 4000);
                 }
             }
             if(window.myRole === 'gm') {
@@ -515,12 +534,12 @@
         window.setPhase = async (newPhase) => { await setDoc(stateDocRef, { phase: newPhase }, { merge: true }); };
         
         window.resetGame = async () => { 
-            if(confirm("모든 참가자의 점수를 100%로 초기화하시겠습니까?")) { 
+            if(confirm("모든 참가자를 내보내고 게임을 초기화하시겠습니까?")) { 
                 await setDoc(stateDocRef, { phase: 'lobby' });
                 const pKeys = Object.keys(window.playersData || {});
-                pKeys.forEach(async (uid) => {
-                    await setDoc(doc(playersColRef, uid), { score: 100 }, { merge: true });
-                });
+                for(let uid of pKeys) {
+                    await deleteDoc(doc(playersColRef, uid));
+                }
             } 
         };
     </script>
