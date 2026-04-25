@@ -10,14 +10,30 @@
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;700;900&display=swap');
         body { font-family: 'Noto Sans KR', sans-serif; background-color: #0f172a; color: white; margin: 0; min-height: 100vh; overflow: hidden; transition: background-color 1s; }
         
-        .rank-bar { transition: all 0.3s ease-out; }
+        .rank-bar { transition: width 0.5s ease-out, background-color 0.5s; }
         
-        /* 피 내리는 애니메이션 */
+        /* 4단계 강제 추락 애니메이션 (쭈욱 떨어짐) */
+        .drain-bar { transition: width 4s cubic-bezier(0.5, 0, 1, 1) !important; background-color: #dc2626 !important; }
+        
+        /* 피 내리는 애니메이션 (일반) */
         @keyframes rain { 0% { transform: translateY(-100px); opacity: 1; } 100% { transform: translateY(1200px); opacity: 0; } }
         .blood-drop { position: absolute; font-size: 3rem; color: #ef4444; text-shadow: 0 0 10px rgba(239,68,68,0.8); animation: rain linear infinite; }
         
+        /* 5단계: 잔으로 모이는 깔때기 폭우 애니메이션 */
+        @keyframes funnel {
+            0% { transform: translate(0, -100px); opacity: 0; }
+            10% { opacity: 1; }
+            100% { transform: translate(var(--tx), var(--ty)) scale(0.3); opacity: 0; }
+        }
+        .blood-funnel {
+            position: absolute; font-size: 4rem; color: #ef4444; 
+            text-shadow: 0 0 15px rgba(239,68,68,1);
+            animation: funnel linear forwards;
+            z-index: 45;
+        }
+
         /* 속죄 화면 이펙트 */
-        .holy-light { position: absolute; inset: 0; background: radial-gradient(circle, rgba(234,179,8,0.3) 0%, rgba(15,23,42,1) 80%); animation: pulse 2s infinite alternate; pointer-events: none; }
+        .holy-light { position: absolute; inset: 0; background: radial-gradient(circle, rgba(234,179,8,0.2) 0%, rgba(15,23,42,1) 80%); animation: pulse 2s infinite alternate; pointer-events: none; }
         @keyframes pulse { from { opacity: 0.5; } to { opacity: 1; } }
     </style>
 </head>
@@ -33,7 +49,7 @@
     <!-- 1. 보편 속죄 (행위) - 랭킹 보드 -->
     <div id="disp-ranking-area" class="w-full max-w-5xl flex-grow flex flex-col z-20 transition-all duration-1000">
         <div class="flex justify-between items-end mb-4 px-4 border-b-2 border-slate-700 pb-2">
-            <span class="text-2xl font-black text-slate-300" id="disp-rank-title">나의 행위로 구원(100%)을 채울 수 있는가?</span>
+            <span class="text-2xl font-black text-slate-300" id="disp-rank-title">나의 능력으로 구원(100%)을 유지할 수 있는가?</span>
             <span class="text-lg text-slate-500">참가자: <span id="disp-count" class="text-white font-bold">0</span>명</span>
         </div>
         
@@ -46,20 +62,25 @@
     <div id="rain-container" class="absolute inset-0 z-10 overflow-hidden pointer-events-none"></div>
 
     <!-- 2. 속죄 (전원 구원) 오버레이 -->
-    <div id="disp-limited-overlay" class="hidden absolute inset-0 bg-slate-900 bg-opacity-95 z-30 flex-col items-center pt-32 p-10 overflow-y-auto">
+    <div id="disp-limited-overlay" class="hidden absolute inset-0 bg-slate-900 bg-opacity-95 z-30 flex-col items-center justify-start pt-16 p-10 overflow-hidden">
         <div class="holy-light"></div>
-        <h1 class="text-7xl font-black text-yellow-400 mb-6 drop-shadow-[0_0_30px_rgba(234,179,8,0.8)] z-40">
+        <h1 class="text-7xl font-black text-yellow-400 mb-4 drop-shadow-[0_0_30px_rgba(234,179,8,0.8)] z-40 animate-pulse">
             TETELESTAI (다 이루었다)
         </h1>
         
-        <div class="mt-10 text-4xl text-white font-black text-center leading-relaxed z-40">
-            인간의 노력(기울기)이 한계에 부딪혀 마비된 순간,<br>
-            <span class="text-red-400 text-5xl mt-6 block">생명책에 기록된 당신을 향해<br>완벽하게 타겟팅된 은혜가 꽂혔습니다!</span>
+        <div class="mt-4 text-3xl text-white font-black text-center leading-relaxed z-40 bg-black bg-opacity-60 p-6 rounded-2xl border border-slate-700 shadow-2xl">
+            인간의 구원 게이지가 완전히 파괴된 순간,<br>
+            <span class="text-red-400 text-5xl mt-4 block">당신을 향해 타겟팅된 십자가 은혜가 쏟아집니다!</span>
         </div>
         
-        <div class="mt-20 text-2xl text-slate-400 font-bold text-center z-40 bg-black p-8 rounded-2xl border border-slate-700">
-            "내 양은 내 음성을 들으며 나는 그들을 알며 그들은 나를 따르느니라" (요 10:27)<br>
-            십자가의 보혈은 100%를 향한 여러분의 노력이 아니라, 처음부터 여러분을 100% 구원하는 능력이었습니다.
+        <!-- 중앙 성배 (Cup) 연출 -->
+        <div id="disp-holy-cup" class="absolute bottom-[5vh] left-1/2 transform -translate-x-1/2 z-40 flex flex-col items-center">
+            <div class="relative">
+                <i class="fas fa-wine-glass text-[16rem] text-yellow-400 drop-shadow-[0_0_50px_rgba(234,179,8,1)]"></i>
+                <div class="absolute inset-0 bg-yellow-500 blur-3xl opacity-30 animate-pulse rounded-full"></div>
+                <!-- 성배 중앙 십자가 마크 -->
+                <i class="fas fa-cross absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/3 text-6xl text-yellow-100 opacity-90 drop-shadow-md"></i>
+            </div>
         </div>
     </div>
 
@@ -117,11 +138,38 @@
             
             if(level === 0) return;
             
+            // 5단계: 잔 안으로 빨려 들어가는 폭우 (Funnel Rain)
+            if(level === 5) {
+                rainInterval = setInterval(() => {
+                    for(let i=0; i<15; i++) {
+                        let drop = document.createElement('i');
+                        drop.className = 'fas fa-tint blood-funnel';
+                        
+                        let startX = Math.random() * 100; // 0 ~ 100vw
+                        drop.style.left = startX + 'vw';
+                        
+                        // 목표 지점: 화면 중앙 하단 (성배의 위치)
+                        drop.style.setProperty('--tx', (50 - startX) + 'vw');
+                        drop.style.setProperty('--ty', '85vh'); // 성배 안쪽 깊이
+                        
+                        let duration = 0.4 + Math.random() * 0.4; // 0.4s ~ 0.8s
+                        drop.style.animationDuration = duration + 's';
+                        
+                        container.appendChild(drop);
+                        
+                        // 애니메이션 종료 후 요소 제거
+                        setTimeout(() => { if(drop.parentNode) drop.remove(); }, duration * 1000);
+                    }
+                }, 100);
+                return;
+            }
+            
+            // 1~4단계 일반 비
             let count, duration;
             if(level === 1) { count = 10; duration = '3s'; }
             else if(level === 2) { count = 30; duration = '2s'; }
             else if(level === 3) { count = 80; duration = '1s'; }
-            else if(level === 4) { count = 200; duration = '0.3s'; } // 폭우
+            else if(level === 4) { count = 200; duration = '0.3s'; } 
             
             for(let i=0; i<count; i++) {
                 let drop = document.createElement('i');
@@ -152,37 +200,53 @@
 
             if(phase === 'lobby') {
                 subtitle.innerText = "예수님의 피는 아무나 걸리라고 뿌려진 것인가?";
+                rankTitle.innerText = "나의 능력으로 구원(100%)을 유지할 수 있는가?";
+                rankTitle.className = "text-2xl font-black text-slate-300";
                 setRainIntensity(0);
             }
             else if(phase === 's1' || phase === 's2' || phase === 's3' || phase === 's4') {
-                subtitle.innerHTML = `<span class='text-orange-400'>스마트폰을 기울여서 예수님의 피를 받아내라! (단계: ${phase})</span>`;
+                subtitle.innerHTML = `<span class='text-orange-400'>스마트폰을 기울여 쏟아지는 은혜를 담아내라! (단계: ${phase})</span>`;
                 
                 if(phase === 's1') setRainIntensity(1);
                 if(phase === 's2') setRainIntensity(2);
                 if(phase === 's3') setRainIntensity(3);
-                if(phase === 's4') {
+                
+                let isPhase4 = (phase === 's4');
+                if(isPhase4) {
                     setRainIntensity(4);
-                    rankTitle.innerText = "인간의 한계 체감 (불가능)";
+                    rankTitle.innerText = "인간의 한계 체감 (구원 상실)";
                     rankTitle.className = "text-3xl font-black text-red-500 animate-pulse";
+                } else {
+                    rankTitle.innerText = "나의 능력으로 구원(100%)을 유지할 수 있는가?";
+                    rankTitle.className = "text-2xl font-black text-slate-300";
                 }
 
+                // 랭킹 데이터를 내림차순(점수가 높은 순)으로 정렬
                 let ranking = pKeys.map(uid => ({ name: window.playersData[uid].name, score: window.playersData[uid].score || 0 }));
                 ranking.sort((a,b) => b.score - a.score);
                 const top10 = ranking.slice(0, 10);
                 
-                // 🔥 이제 100점을 만점(100%)으로 고정하여 화면에 표시합니다.
                 if(top10.length > 0) {
                     let html = top10.map((r, idx) => {
-                        let widthPct = Math.max((r.score / 100) * 100, 5); // 100 기준 퍼센트 계산
-                        let color = idx === 0 ? 'bg-red-500' : 'bg-slate-600';
-                        if(r.score >= 100) color = 'bg-yellow-500'; // 100% 달성시 색상 변경
+                        // 4단계에서는 강제로 0%로 추락하게 만들고, 1~3단계는 실제 점수 표시
+                        let displayScore = isPhase4 ? 0 : Math.max(r.score, 0);
+                        let widthPct = Math.max(displayScore, 5); 
+                        
+                        // 게이지 색상 로직 (100~70: 초록, 69~30: 주황, 29~0: 빨강)
+                        let barColor = 'bg-green-500';
+                        if (r.score < 70) barColor = 'bg-orange-500';
+                        if (r.score < 30) barColor = 'bg-red-500';
+
+                        // 4단계 전용 CSS 클래스 추가 (천천히 0으로 떨어지는 애니메이션)
+                        let barClass = isPhase4 ? "drain-bar" : `rank-bar ${barColor}`;
+                        let scoreText = isPhase4 ? `<i class="fas fa-skull text-xl"></i> 0%` : `${r.score}%`;
 
                         return `
                             <div class="flex items-center w-full bg-slate-800 rounded-xl p-3 border border-slate-700">
                                 <div class="w-16 text-2xl font-black text-slate-400 text-center">${idx+1}</div>
                                 <div class="w-48 text-2xl font-bold text-white truncate px-4">${r.name}</div>
                                 <div class="flex-grow h-10 bg-slate-900 rounded-full overflow-hidden">
-                                    <div class="${color} h-full rank-bar rounded-full flex items-center justify-end px-4 text-white font-black" style="width: ${widthPct}%; min-width: 4rem;">${r.score}%</div>
+                                    <div class="${barClass} h-full rounded-full flex items-center justify-end px-4 text-white font-black" style="width: ${widthPct}%; min-width: 4rem;">${scoreText}</div>
                                 </div>
                             </div>
                         `;
@@ -192,13 +256,15 @@
             }
             else if(phase === 's5') {
                 subtitle.innerText = "";
-                setRainIntensity(0); // 비 멈춤
                 rankArea.classList.add('hidden');
                 
-                document.body.style.backgroundColor = '#1e1b4b'; // 살짝 어둡고 붉은 톤으로 분위기 전환
+                document.body.style.backgroundColor = '#1e1b4b'; 
                 
                 limitedOverlay.classList.remove('hidden');
                 limitedOverlay.classList.add('flex');
+                
+                // 5단계 특수 폭우(성배로 빨려들어감) 실행
+                setRainIntensity(5);
             }
         }
     </script>
