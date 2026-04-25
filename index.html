@@ -3,170 +3,124 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>TULIP: 제한적 속죄 - 메인</title>
+    <title>TULIP: 제한적 속죄</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;700;900&display=swap');
-        body { font-family: 'Noto Sans KR', sans-serif; background-color: #f1f5f9; touch-action: manipulation; overflow: hidden; }
-        .screen { display: none !important; }
-        .screen.active { display: flex !important; flex-direction: column; flex-grow: 1; position: relative; min-height: 100vh; }
+        body { font-family: 'Noto Sans KR', sans-serif; background-color: #0f172a; overflow: hidden; touch-action: none; color: white; }
+        .screen { display: none; width: 100vw; height: 100vh; position: absolute; top: 0; left: 0; }
+        .active { display: flex; }
         
-        /* 게임 영역 (Canvas 포함) */
-        #game-area { touch-action: none; position: relative; overflow: hidden; background-color: #0f172a; }
-        canvas { display: block; width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 10; pointer-events: none; }
+        /* 성배 디자인 */
+        #cup-container { position: absolute; bottom: 10%; left: 50%; transform: translateX(-50%); width: 100px; height: 120px; z-index: 20; transition: left 0.1s ease-out; }
+        .cup-body { width: 100%; height: 100%; border: 4px solid #cbd5e1; border-top: none; border-radius: 0 0 40px 40px; position: relative; overflow: hidden; background: rgba(255,255,255,0.1); backdrop-filter: blur(5px); box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
+        #cup-fill { position: absolute; bottom: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(to top, #b91c1c, #ef4444); transition: height 0.3s ease; }
         
-        /* 잔 (Cup) */
-        #cup-container { position: absolute; bottom: 5%; left: 50%; transform: translateX(-50%); z-index: 20; /* JS로 움직임 */ }
-        .cup { width: 90px; height: 90px; border: 4px solid #fef08a; border-top: none; border-radius: 0 0 45px 45px; background: rgba(254, 240, 138, 0.1); display: flex; align-items: flex-end; justify-content: center; overflow: hidden; position: relative; box-shadow: 0 10px 20px rgba(0,0,0,0.5); }
-        .cup-blood { width: 100%; height: 0%; background-color: #ef4444; transition: height 0.3s; }
-        
-        /* 화면 흔들림 효과 (4단계용) */
-        @keyframes shake { 0%, 100% { transform: translate(0, 0); } 25% { transform: translate(-2px, 2px); } 50% { transform: translate(2px, -2px); } 75% { transform: translate(-2px, -2px); } }
-        .shaking { animation: shake 0.2s infinite; box-shadow: inset 0 0 50px rgba(239, 68, 68, 0.5); }
+        /* 4단계 화면 흔들림 */
+        @keyframes shake {
+            0%, 100% { transform: translate(0, 0); }
+            25% { transform: translate(-5px, 5px) rotate(-2deg); }
+            50% { transform: translate(5px, -5px) rotate(2deg); }
+            75% { transform: translate(-5px, -5px) rotate(0deg); }
+        }
+        .shaking { animation: shake 0.1s infinite; }
 
-        /* 게이지 바 색상 전환 */
-        .bg-score-high { background-color: #22c55e; }
-        .bg-score-mid { background-color: #f97316; }
-        .bg-score-low { background-color: #ef4444; }
+        /* 5단계 은혜 채워짐 연출 (황금빛) */
+        .grace-glow #cup-fill { background: linear-gradient(to top, #eab308, #facc15) !important; box-shadow: 0 0 30px #facc15; }
+        .grace-glow .cup-body { border-color: #fef08a; box-shadow: 0 0 50px rgba(250, 204, 21, 0.6); }
 
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        canvas { position: absolute; top: 0; left: 0; z-index: 10; pointer-events: none; }
+        .ui-layer { position: relative; z-index: 30; pointer-events: none; }
+        .interactive-ui { pointer-events: auto; }
     </style>
 </head>
-<body class="w-full h-screen text-slate-800 flex flex-col relative">
+<body>
 
-    <div id="loading-overlay" class="absolute inset-0 bg-slate-900 z-50 flex flex-col items-center justify-center text-white">
-        <i class="fas fa-spinner fa-spin text-5xl text-red-500 mb-4"></i>
-        <h2 class="text-xl font-bold">서버에 접속 중입니다...</h2>
+    <!-- 1. 로그인 (대기) 화면 -->
+    <div id="screen-login" class="screen active flex-col items-center justify-center p-6 text-center">
+        <h1 class="text-5xl font-black text-red-500 mb-2 drop-shadow-md tracking-tighter">TU<span class="text-red-400">L</span>IP</h1>
+        <h2 class="text-3xl font-bold text-slate-300 mb-8">제한적 속죄</h2>
+        
+        <div class="bg-slate-800 p-8 rounded-3xl w-full max-w-sm border border-slate-700 shadow-2xl">
+            <input type="text" id="player-name" placeholder="이름을 입력하세요" class="w-full text-center text-2xl p-4 rounded-xl mb-6 bg-slate-900 border border-slate-600 text-white placeholder-slate-500 focus:outline-none focus:border-red-500 transition-colors" maxlength="8">
+            <button id="btn-join" class="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-4 rounded-xl text-xl transition-colors shadow-lg active:scale-95">입장하기</button>
+        </div>
+        <p class="text-slate-500 mt-6 text-sm">GM 모드로 진입하려면 이름에 'gm'을 입력하세요.</p>
     </div>
 
-    <!-- SCREEN 0: 로그인 -->
-    <div id="screen-login" class="screen items-center justify-center p-4">
-        <div class="bg-white p-8 rounded-3xl shadow-xl max-w-md w-full text-center border border-red-200">
-            <h1 class="text-5xl font-black text-red-600 mb-2">TU<span class="text-6xl text-red-500">L</span>IP</h1>
-            <h2 class="text-3xl font-black text-slate-800 mb-2">제한적 속죄</h2>
-            <h3 class="text-lg font-bold text-slate-500 mb-8">은혜의 성배</h3>
-            
-            <div class="space-y-4">
-                <button onclick="showPlayerLogin()" class="w-full bg-red-600 hover:bg-red-700 text-white font-black py-5 rounded-2xl shadow-lg transition text-xl">
-                    <i class="fas fa-wine-glass mr-2"></i> 게임 참가하기
-                </button>
-                <div class="h-px bg-slate-200 my-4"></div>
-                <button onclick="checkGMAndSetRole()" class="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold py-4 rounded-xl shadow transition">
-                    <i class="fas fa-user-shield mr-2"></i> GM 통제실 🔒
-                </button>
+    <!-- 2. 플레이어 화면 -->
+    <div id="screen-player" class="screen flex-col relative overflow-hidden bg-slate-900">
+        
+        <canvas id="game-canvas"></canvas>
+
+        <div class="ui-layer w-full h-full p-6 flex flex-col justify-between">
+            <div class="flex justify-between items-start">
+                <div class="bg-slate-800 bg-opacity-80 px-4 py-2 rounded-full border border-slate-700">
+                    <span id="p-name-disp" class="font-bold text-slate-300">이름</span>
+                </div>
+                <div class="text-right bg-slate-800 bg-opacity-80 px-4 py-2 rounded-2xl border border-slate-700 flex flex-col items-end">
+                    <span class="text-xs text-slate-400 font-bold mb-1">구원 게이지</span>
+                    <span id="p-score-disp" class="font-black text-3xl text-white">100%</span>
+                </div>
             </div>
+
+            <!-- 중앙 지시문 -->
+            <div id="p-instruction" class="text-center transition-all duration-500">
+                <h3 id="p-inst-title" class="text-3xl font-black text-white mb-2 drop-shadow-lg">대기 중</h3>
+                <p id="p-inst-desc" class="text-lg text-slate-300 bg-slate-900 bg-opacity-60 inline-block px-4 py-2 rounded-xl">스크린을 주목해 주세요.</p>
+            </div>
+
+            <div class="h-24"></div> <!-- 하단 여백 -->
+        </div>
+
+        <!-- 성배 -->
+        <div id="cup-container">
+            <div class="cup-body">
+                <div id="cup-fill" style="height: 100%;"></div>
+            </div>
+        </div>
+
+        <!-- 5단계 불가항력적 은혜 오버레이 -->
+        <div id="p-grace-overlay" class="absolute inset-0 bg-yellow-500 bg-opacity-30 z-40 hidden flex-col items-center justify-center backdrop-blur-sm">
+            <div class="text-6xl text-yellow-300 mb-4 drop-shadow-[0_0_20px_rgba(253,224,71,1)]"><i class="fas fa-cross"></i></div>
+            <h2 class="text-4xl font-black text-white drop-shadow-lg text-center leading-tight">불가항력적<br><span class="text-yellow-300">은혜!</span></h2>
         </div>
     </div>
 
-    <!-- 참가자 이름 모달 -->
-    <div id="player-name-modal" class="hidden absolute inset-0 bg-slate-900 bg-opacity-80 z-50 flex items-center justify-center p-4">
-        <div class="bg-white p-8 rounded-2xl shadow-2xl max-w-sm w-full">
-            <h3 class="text-2xl font-black text-slate-800 mb-4 text-center">당신의 이름을 입력하세요</h3>
-            <input type="text" id="player-name-input" placeholder="실명 입력" class="w-full px-4 py-4 border-2 border-red-400 rounded-xl focus:outline-none focus:ring-4 focus:ring-red-300 mb-4 font-black text-xl text-center">
-            
-            <button onclick="joinAsPlayer()" class="w-full bg-red-600 text-white font-black py-4 rounded-xl shadow-lg text-lg">
-                <i class="fas fa-play mr-2"></i>입장 및 센서 켜기
+    <!-- 3. GM 통제 화면 -->
+    <div id="screen-gm" class="screen flex-col p-6 bg-slate-900 overflow-y-auto">
+        <header class="mb-6 border-b border-slate-700 pb-4">
+            <h2 class="text-3xl font-black text-red-500 flex items-center"><i class="fas fa-gamepad mr-3"></i>GM 컨트롤 패널</h2>
+            <div class="flex justify-between items-center mt-2">
+                <span class="text-slate-400">접속자: <span id="gm-player-count" class="font-bold text-white">0</span>명</span>
+                <button onclick="resetGame()" class="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors"><i class="fas fa-trash-alt mr-2"></i>전체 초기화(강제퇴장)</button>
+            </div>
+        </header>
+
+        <div class="grid gap-4 mb-6">
+            <button onclick="setPhase('lobby')" class="bg-slate-800 hover:bg-slate-700 text-white font-bold py-4 rounded-xl border-2 border-slate-600 flex justify-between px-6 items-center">
+                <span><i class="fas fa-home mr-2 text-slate-400"></i>대기실 (Lobby)</span>
             </button>
-            <button onclick="document.getElementById('player-name-modal').classList.add('hidden')" class="w-full mt-3 text-slate-500 py-2 font-bold">취소</button>
+            <button onclick="setPhase('s1')" class="bg-blue-900 hover:bg-blue-800 text-blue-100 font-bold py-4 rounded-xl border-2 border-blue-700 flex justify-between px-6 items-center">
+                <span><i class="fas fa-cloud-rain mr-2 text-blue-400"></i>1단계: 이슬비</span>
+            </button>
+            <button onclick="setPhase('s2')" class="bg-indigo-900 hover:bg-indigo-800 text-indigo-100 font-bold py-4 rounded-xl border-2 border-indigo-700 flex justify-between px-6 items-center">
+                <span><i class="fas fa-cloud-showers-heavy mr-2 text-indigo-400"></i>2단계: 소나기</span>
+            </button>
+            <button onclick="setPhase('s3')" class="bg-purple-900 hover:bg-purple-800 text-purple-100 font-bold py-4 rounded-xl border-2 border-purple-700 flex justify-between px-6 items-center">
+                <span><i class="fas fa-bolt mr-2 text-purple-400"></i>3단계: 장대비</span>
+            </button>
+            <button onclick="setPhase('s4')" class="bg-red-900 hover:bg-red-800 text-red-100 font-bold py-5 rounded-xl border-2 border-red-600 flex justify-between px-6 items-center transform scale-105 shadow-lg">
+                <span class="text-xl"><i class="fas fa-skull-crossbones mr-2 text-red-400"></i>4단계: 폭우 (전적 무능력)</span>
+            </button>
+            <button onclick="setPhase('s5')" class="bg-yellow-600 hover:bg-yellow-500 text-yellow-50 font-bold py-5 rounded-xl border-2 border-yellow-400 flex justify-between px-6 items-center transform scale-105 shadow-lg">
+                <span class="text-xl"><i class="fas fa-cross mr-2 text-yellow-300"></i>5단계: 불가항력적 은혜 선포</span>
+            </button>
         </div>
-    </div>
-
-    <!-- SCREEN 1: 참가자 화면 (게임 영역) -->
-    <div id="screen-player" class="screen bg-slate-900 text-white">
         
-        <!-- 상단 헤더 및 점수 -->
-        <header class="bg-black p-4 shadow-md flex flex-col justify-between items-center sticky top-0 z-20 border-b border-slate-800">
-            <div class="flex justify-between w-full mb-3">
-                <div class="font-bold text-lg"><i class="fas fa-user mr-2 text-red-500"></i><span id="p-my-name">이름</span></div>
-                <div class="font-black text-2xl text-red-400" id="p-score-text">100%</div>
-            </div>
-            <!-- 구원 게이지 바 -->
-            <div class="w-full bg-slate-800 h-6 rounded-full overflow-hidden border border-slate-700">
-                <div id="p-score-bar" class="h-full bg-score-high transition-all duration-300 flex items-center justify-end px-2 text-xs font-bold" style="width: 100%;"></div>
-            </div>
-        </header>
-
-        <div class="flex-grow w-full relative" id="game-area">
-            <!-- 고성능 렌더링 캔버스 -->
-            <canvas id="game-canvas"></canvas>
-
-            <!-- 안내 문구 -->
-            <div id="p-instruction" class="absolute top-10 w-full text-center z-20 px-4 pointer-events-none">
-                <h2 class="text-2xl font-black text-slate-300 drop-shadow-md" id="p-inst-title">게임 대기 중</h2>
-                <p class="text-slate-400 font-bold mt-2 text-sm" id="p-inst-desc">스마트폰을 좌우로 기울여 성배를 움직이세요.</p>
-            </div>
-
-            <!-- 플레이어 성배 -->
-            <div id="cup-container">
-                <div class="cup" id="player-cup">
-                    <div class="cup-blood" id="cup-blood-level"></div>
-                </div>
-            </div>
-
-            <!-- 5단계 은혜 채워짐 연출용 오버레이 (투명도를 줘서 뒤에 피가 성배로 들어가는걸 보이게 함) -->
-            <div id="p-grace-overlay" class="hidden absolute inset-0 bg-slate-900 bg-opacity-70 z-30 flex-col items-center justify-center p-8 text-center transition-opacity duration-1000 pointer-events-none">
-                <i class="fas fa-cross text-7xl text-yellow-400 mb-6 drop-shadow-[0_0_20px_rgba(250,204,21,1)]"></i>
-                <h1 class="text-4xl md:text-5xl font-black text-yellow-400 mb-4 tracking-tight leading-tight drop-shadow-lg">불가항력적 은혜<br>100% 명중!</h1>
-                <p class="text-xl text-white font-bold leading-snug drop-shadow-md">나의 무능력에도 불구하고,<br>십자가의 보혈이 당신을 찾아갑니다.</p>
-            </div>
-
-        </div>
-    </div>
-
-    <!-- SCREEN 2: 진행자 (GM) 화면 -->
-    <div id="screen-gm" class="screen bg-slate-100">
-        <header class="bg-slate-900 text-white p-4 shadow-md flex justify-between items-center sticky top-0 z-20">
-            <h1 class="text-xl font-black text-red-400"><i class="fas fa-crown mr-2"></i>GM 통제실</h1>
-            <button onclick="resetGame()" class="bg-red-600 px-3 py-2 rounded-lg text-xs font-black shadow hover:bg-red-700">모두 100% 초기화</button>
-        </header>
-        
-        <div class="p-4 flex-grow grid grid-cols-1 lg:grid-cols-2 gap-6 pb-24">
-            
-            <!-- GM 컨트롤 패널 -->
-            <div class="bg-white p-6 rounded-3xl shadow-lg border-t-8 border-red-500 flex flex-col">
-                <h2 class="font-black text-2xl text-slate-800 mb-2">🎮 난이도 및 교리 진행</h2>
-                <p class="text-slate-500 font-bold mb-6">현재 상태: <span id="gm-current-phase" class="text-red-600">대기 중</span></p>
-                
-                <div class="space-y-3 flex-grow flex flex-col">
-                    <button onclick="setPhase('lobby')" class="w-full py-3 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-xl shadow-sm">
-                        대기실 (중지)
-                    </button>
-                    <div class="h-px bg-slate-200 my-1"></div>
-                    <button onclick="setPhase('s1')" class="w-full py-3 bg-green-100 hover:bg-green-200 text-green-800 font-bold rounded-xl shadow border border-green-300">
-                        1단계: 이슬비 (아주 쉬움)
-                    </button>
-                    <button onclick="setPhase('s2')" class="w-full py-3 bg-yellow-100 hover:bg-yellow-200 text-yellow-800 font-bold rounded-xl shadow border border-yellow-300">
-                        2단계: 소나기 (쉬움)
-                    </button>
-                    <button onclick="setPhase('s3')" class="w-full py-3 bg-orange-100 hover:bg-orange-200 text-orange-800 font-bold rounded-xl shadow border border-orange-300">
-                        3단계: 장대비 (약간 어려움)
-                    </button>
-                    <div class="h-px bg-slate-200 my-1"></div>
-                    <button onclick="setPhase('s4')" class="w-full py-5 bg-red-600 hover:bg-red-700 text-white font-black text-xl rounded-xl shadow-lg border-b-4 border-red-800 animate-pulse flex flex-col items-center">
-                        <i class="fas fa-skull text-2xl mb-1"></i>
-                        <span>4단계: 폭우 (전적 무능력)</span>
-                        <span class="text-xs font-normal mt-1 opacity-80">감당할 수 없는 피가 쏟아지며 점수가 0%로 추락합니다!</span>
-                    </button>
-                    <button onclick="setPhase('s5')" class="w-full py-5 bg-slate-800 hover:bg-slate-900 text-yellow-400 font-black text-xl rounded-xl shadow-lg border-b-4 border-slate-950 mt-2 flex flex-col items-center">
-                        <i class="fas fa-magnet text-2xl mb-1"></i>
-                        <span>5단계: 제한적 속죄 (결론)</span>
-                        <span class="text-xs font-normal text-slate-300 mt-1">성배 고정. 폭우가 자석처럼 성배로 빨려 들어갑니다.</span>
-                    </button>
-                </div>
-            </div>
-
-            <!-- 참가자 현황 -->
-            <div class="bg-white p-6 rounded-3xl shadow-lg border-t-8 border-slate-800 flex flex-col">
-                <h2 class="font-black text-xl border-b-2 border-slate-100 pb-4 mb-4 flex justify-between items-center">
-                    <span>👥 참가자 게이지 현황 (<span id="gm-total-count">0</span>명)</span>
-                </h2>
-                <div id="gm-player-list" class="flex-grow overflow-y-auto space-y-2 max-h-[500px]">
-                    <!-- JS renders player rows -->
-                </div>
-            </div>
+        <div class="bg-slate-800 p-4 rounded-xl border border-slate-700">
+            <h3 class="text-slate-400 font-bold mb-2">현재 단계: <span id="gm-current-phase" class="text-white">lobby</span></h3>
         </div>
     </div>
 
@@ -200,15 +154,15 @@
         }
         auth = getAuth(app);
 
-        window.myUid = null; window.myRole = null; 
-        window.gameState = { phase: 'lobby' }; 
-        window.playersData = {}; 
-        
-        // --- 캔버스 및 게임 엔진 변수 ---
-        const canvas = document.getElementById('game-canvas');
-        const ctx = canvas.getContext('2d');
-        let myScore = 100;
-        let cupX = 50; // 성배 X 위치 (0~100%)
+        // 전역 상태 관리
+        window.myRole = null; 
+        window.myUid = null;
+        window.myName = "";
+        window.myScore = 100;
+        window.gameState = { phase: 'lobby' };
+        window.playersData = {};
+
+        // 게임용 변수
         let drops = []; // 떨어지는 피 배열 (캔버스 렌더링용)
         let gameLoopId = null;
         let lastDbSync = 0;
@@ -216,16 +170,15 @@
         let graceTimeout = null; // 5단계 멘트 지연용 타이머
         
         // 캔버스 사이즈 조정
-        function resizeCanvas() {
-            canvas.width = canvas.parentElement.clientWidth;
-            canvas.height = canvas.parentElement.clientHeight;
-        }
+        const canvas = document.getElementById('game-canvas');
+        const ctx = canvas.getContext('2d');
+        function resizeCanvas() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
         window.addEventListener('resize', resizeCanvas);
 
         // 난이도 설정 (spawnChance: 프레임당 생성확률, speed: 떨어지는 속도(%/프레임), penalty: 놓쳤을때 깎이는 점수)
-        // 1~3단계는 피가 아주 적게 떨어지고 느려서 쉽습니다.
+        // 1단계 아주 쉽게 조정!
         const diffConfig = {
-            's1': { spawnChance: 0.015, speed: 0.4, penalty: 0.2 }, // 패널티 대폭 완화
+            's1': { spawnChance: 0.008, speed: 0.25, penalty: 0.1 }, // 매우 느리고 적게 떨어짐, 패널티 미미함
             's2': { spawnChance: 0.03, speed: 0.6, penalty: 0.2 },  
             's3': { spawnChance: 0.06, speed: 0.9, penalty: 0.2 },  
             's4': { spawnChance: 0.8, speed: 1.5, penalty: 2 },   // 멘붕 (엄청난 양의 피)
@@ -236,256 +189,82 @@
             try {
                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) await signInWithCustomToken(auth, __initial_auth_token);
                 else await signInAnonymously(auth);
-            } catch (error) { console.error("Auth error:", error); }
+            } catch (error) { console.error("Auth init error", error); }
         };
 
-        window.addEventListener('DOMContentLoaded', initAuth);
-
         onAuthStateChanged(auth, (user) => {
-            if (user) { window.myUid = user.uid; document.getElementById('loading-overlay').classList.add('hidden'); switchScreen('screen-login'); setupRealtimeListeners(user); }
+            if (user) {
+                window.myUid = user.uid;
+                setupRealtimeListeners();
+            }
         });
 
-        async function setupRealtimeListeners(user) {
-            if (!user) return;
+        function setupRealtimeListeners() {
+            // 게임 상태(Phase) 리스너
             onSnapshot(stateDocRef, (docSnap) => {
-                if (docSnap.exists()) { 
-                    const oldPhase = window.gameState.phase;
-                    window.gameState = docSnap.data(); 
-                    if(oldPhase !== window.gameState.phase) handlePhaseChange();
-                    updateUIBasedOnRole(); 
-                } else { setDoc(stateDocRef, { phase: 'lobby' }); }
+                if (docSnap.exists()) {
+                    window.gameState = docSnap.data();
+                    updateUIBasedOnRole();
+                }
             });
 
+            // 플레이어 목록 리스너
             onSnapshot(playersColRef, (querySnapshot) => {
                 window.playersData = {};
                 querySnapshot.forEach((doc) => { window.playersData[doc.id] = doc.data(); });
+                
                 updateUIBasedOnRole();
                 
                 // 플레이어인데 내 데이터가 사라졌다면(GM 전체 초기화 시) 로그인 화면으로 강퇴
+                // iframe 정책상 alert() 금지. 그냥 바로 튕겨냅니다.
                 if (window.myRole === 'player' && isPlaying && !window.playersData[window.myUid]) {
-                    alert("게임이 초기화되어 대기실로 이동합니다.");
+                    console.log("강제 퇴장 처리됨");
                     window.myRole = null;
                     isPlaying = false;
                     if(gameLoopId) { cancelAnimationFrame(gameLoopId); gameLoopId = null; }
+                    document.getElementById('player-name').value = ''; // 이름 비우기
                     switchScreen('screen-login');
                 }
             });
         }
 
         window.switchScreen = (id) => { document.querySelectorAll('.screen').forEach(s => s.classList.remove('active')); document.getElementById(id).classList.add('active'); };
-        window.checkGMAndSetRole = () => { const pwd = prompt("GM 비밀번호:"); if (pwd === "1004") { window.myRole = 'gm'; switchScreen('screen-gm'); updateUIBasedOnRole(); } };
-        window.showPlayerLogin = () => { document.getElementById('player-name-modal').classList.remove('hidden'); };
 
-        window.joinAsPlayer = async () => {
-            const name = document.getElementById('player-name-input').value.trim();
-            if(!name) return alert("이름을 입력하세요.");
-            document.getElementById('player-name-modal').classList.add('hidden');
-            
-            // 센서 권한 요청 및 이벤트 등록
-            if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-                try {
-                    const permission = await DeviceOrientationEvent.requestPermission();
-                    if (permission === 'granted') setupDeviceSensors();
-                } catch (e) { setupDeviceSensors(); }
-            } else { setupDeviceSensors(); }
-
-            window.myRole = 'player';
-            myScore = 100;
-            resizeCanvas(); // 캔버스 초기화
-            isPlaying = true;
-            
-            const myPlayerRef = doc(playersColRef, window.myUid);
-            await setDoc(myPlayerRef, { name: name, score: myScore }, { merge: true });
-            
-            switchScreen('screen-player');
-            document.getElementById('p-my-name').innerText = name;
-            updateLocalScoreUI();
-
-            // 메인 렌더링 루프 시작
-            if(!gameLoopId) {
-                gameLoopId = requestAnimationFrame(renderGameLoop);
-            }
-        };
-
-        // 스마트폰 기울기 및 터치 컨트롤 설정
-        function setupDeviceSensors() {
-            window.addEventListener('deviceorientation', (e) => {
-                // 5단계(은혜)에서는 조작 불가 (자동 중앙 이동)
-                if(!e.gamma || window.gameState.phase === 's5') return;
-                let tilt = e.gamma; 
-                let mapped = ((tilt + 45) / 90) * 100;
-                cupX = Math.max(5, Math.min(95, mapped));
-            });
-
-            const gameArea = document.getElementById('game-area');
-            const moveCupTouch = (clientX) => {
-                if(window.gameState.phase === 's5') return;
-                let rect = gameArea.getBoundingClientRect();
-                let x = ((clientX - rect.left) / rect.width) * 100;
-                cupX = Math.max(5, Math.min(95, x));
-            };
-            gameArea.addEventListener('touchmove', (e) => { e.preventDefault(); moveCupTouch(e.touches[0].clientX); }, {passive: false});
-            
-            // PC 마우스 테스트용
-            let isMouseDwn = false;
-            gameArea.addEventListener('mousedown', () => isMouseDwn = true);
-            gameArea.addEventListener('mouseup', () => isMouseDwn = false);
-            gameArea.addEventListener('mouseleave', () => isMouseDwn = false);
-            gameArea.addEventListener('mousemove', (e) => { if(isMouseDwn) moveCupTouch(e.clientX); });
-        }
-
-        // 상태 변경 감지 시 초기화
-        function handlePhaseChange() {
-            if(window.myRole !== 'player') return;
-            const phase = window.gameState.phase;
-            
-            // 페이즈 변경 시 남아있는 피 초기화
-            drops = [];
-
-            if(phase === 'lobby') {
-                myScore = 100; updateLocalScoreUI(); syncScoreToDB(true);
-            }
-        }
-
-        // 🎯 핵심 캔버스 게임 루프 (초당 60프레임)
-        function renderGameLoop() {
-            if (!isPlaying || window.myRole !== 'player') return;
-
-            // 캔버스 지우기
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-            const phase = window.gameState.phase;
-            const config = diffConfig[phase];
-
-            // 성배 부드러운 위치 반영
-            const cupContainer = document.getElementById('cup-container');
-            
-            if (phase === 's5') {
-                // 5단계: 성배 강제 중앙 고정 (스무스하게 이동)
-                cupX += (50 - cupX) * 0.1;
-            }
-            cupContainer.style.left = cupX + '%';
-
-            if (config) {
-                // 피 생성
-                if (Math.random() < config.spawnChance) {
-                    // 화면 전체 폭(5~95%)에서 무작위 생성
-                    drops.push({ x: Math.random() * 90 + 5, y: 0 });
-                }
-
-                // 피 이동 및 충돌 판정
-                // 성배의 Y 판정 기준선 (대략 85% 지점)
-                const hitLineY = 85; 
-
-                for (let i = drops.length - 1; i >= 0; i--) {
-                    let drop = drops[i];
-
-                    // 이동 로직
-                    if (phase === 's5') {
-                        // 🌟 유도 미사일 로직 (성배 중앙으로 휘어짐)
-                        const dx = cupX - drop.x;
-                        const dy = hitLineY - drop.y;
-                        const dist = Math.sqrt(dx*dx + dy*dy);
-                        // 목표(성배)를 향해 가속
-                        drop.x += (dx / dist) * config.speed * 2;
-                        drop.y += (dy / dist) * config.speed * 2;
-                    } else {
-                        // 1~4단계: 수직 자유낙하
-                        drop.y += config.speed;
-                    }
-
-                    // 캔버스에 그리기 (픽셀 좌표 변환)
-                    const px = (drop.x / 100) * canvas.width;
-                    const py = (drop.y / 100) * canvas.height;
-                    
-                    ctx.beginPath();
-                    // 눈물방울(피) 모양 그리기 단순화 - 둥근 원형
-                    ctx.arc(px, py, canvas.width * 0.015, 0, Math.PI * 2);
-                    ctx.fillStyle = '#ef4444';
-                    ctx.shadowColor = '#dc2626';
-                    ctx.shadowBlur = 10;
-                    ctx.fill();
-                    ctx.closePath();
-
-                    // 충돌 판정 (Y선 도달)
-                    if (drop.y >= hitLineY) {
-                        // X 좌표 확인 (성배 히트박스를 아주 넉넉하게 25% 폭으로 설정, 1~3단계 쉽게)
-                        if (Math.abs(drop.x - cupX) < 12.5 || phase === 's5') {
-                            // 잡았음! (5단계일 땐 자동 100% 명중이므로 무조건 여기 탐)
-                            if (phase === 's5') {
-                                myScore = Math.min(100, myScore + 3); // 차오르는 속도
-                                updateLocalScoreUI();
-                                syncScoreToDB();
-                            }
-                        } else {
-                            // 놓쳤음!
-                            if (phase !== 's5') {
-                                myScore -= config.penalty;
-                                if (myScore < 0) myScore = 0;
-                                updateLocalScoreUI();
-                                syncScoreToDB();
-                            }
-                        }
-                        // 배열에서 제거
-                        drops.splice(i, 1);
-                    }
-                }
-            }
-            
-            gameLoopId = requestAnimationFrame(renderGameLoop);
-        }
-
-        function updateLocalScoreUI() {
-            const scoreInt = Math.floor(myScore);
-            document.getElementById('p-score-text').innerText = scoreInt + '%';
-            
-            const bar = document.getElementById('p-score-bar');
-            bar.style.width = Math.max(myScore, 0) + '%';
-            
-            // 색상 변경
-            bar.classList.remove('bg-score-high', 'bg-score-mid', 'bg-score-low');
-            if(myScore >= 70) bar.classList.add('bg-score-high');
-            else if(myScore >= 30) bar.classList.add('bg-score-mid');
-            else bar.classList.add('bg-score-low');
-
-            // 컵 내부 피 수위
-            document.getElementById('cup-blood-level').style.height = myScore + '%';
-        }
-
-        // 과도한 DB 쓰기를 막기 위한 쓰로틀링 (0.5초)
-        function syncScoreToDB(force = false) {
-            const now = Date.now();
-            if(force || now - lastDbSync > 500) { 
-                lastDbSync = now;
-                const myPlayerRef = doc(playersColRef, window.myUid);
-                setDoc(myPlayerRef, { score: Math.floor(myScore) }, { merge: true });
-            }
-        }
-
+        // UI 업데이트
         function updateUIBasedOnRole() {
-            if(window.myRole === 'player') {
-                const phase = window.gameState.phase;
+            const phase = window.gameState.phase || 'lobby';
+
+            // 플레이어 UI 업데이트
+            if (window.myRole === 'player') {
+                const pData = window.playersData[window.myUid];
+                if (pData) {
+                    window.myScore = pData.score;
+                    document.getElementById('p-score-disp').innerText = Math.floor(window.myScore) + '%';
+                    document.getElementById('cup-fill').style.height = window.myScore + '%';
+                }
+
                 const instTitle = document.getElementById('p-inst-title');
                 const instDesc = document.getElementById('p-inst-desc');
-                const gameArea = document.getElementById('game-area');
+                const gameArea = document.getElementById('screen-player');
                 const cupContainer = document.getElementById('cup-container');
                 const graceOverlay = document.getElementById('p-grace-overlay');
 
                 graceOverlay.classList.add('hidden');
                 graceOverlay.classList.remove('flex');
-                gameArea.classList.remove('shaking');
+                gameArea.classList.remove('shaking', 'grace-glow');
                 cupContainer.classList.remove('hidden');
                 
                 // 이전 딜레이 타이머가 있다면 초기화
                 if(graceTimeout) clearTimeout(graceTimeout);
 
                 if (phase === 'lobby') {
-                    instTitle.innerText = "게임 대기 중"; instTitle.className = "text-2xl font-black text-slate-400 drop-shadow-md";
-                    instDesc.innerText = "곧 은혜의 소나기가 내립니다.";
+                    instTitle.innerText = "대기 중"; instTitle.className = "text-3xl font-black text-white mb-2";
+                    instDesc.innerText = "화면을 주목해 주세요.";
+                    drops = []; // 피 비우기
                 } 
                 else if (phase === 's1' || phase === 's2' || phase === 's3') {
-                    instTitle.innerText = "피를 담아내세요!"; instTitle.className = "text-2xl font-black text-white drop-shadow-md";
-                    instDesc.innerText = "놓치면 구원 게이지가 떨어집니다.";
+                    instTitle.innerText = "스마트폰을 기울이세요!"; instTitle.className = "text-3xl font-black text-blue-300 mb-2";
+                    instDesc.innerText = "위에서 떨어지는 은혜(피)를\n성배에 온전히 담으세요.";
                 }
                 else if (phase === 's4') {
                     instTitle.innerText = "감당할 수 없는 폭우!!"; instTitle.className = "text-3xl font-black text-red-500 drop-shadow-[0_0_10px_rgba(239,68,68,0.8)]";
@@ -494,8 +273,9 @@
                 }
                 else if (phase === 's5') {
                     instTitle.innerText = ""; instDesc.innerText = "";
+                    gameArea.classList.add('grace-glow'); // 황금빛 성배 연출
                     
-                    // 5단계: 은혜가 빨려들어가는 것을 4초간 충분히 보여준 뒤 멘트 표시
+                    // 5단계: 은혜가 중앙으로 빨려들어가는 것을 4초간 보여준 뒤 멘트 표시
                     graceTimeout = setTimeout(() => {
                         if(window.gameState.phase === 's5') {
                             graceOverlay.classList.remove('hidden');
@@ -504,44 +284,209 @@
                     }, 4000);
                 }
             }
-            if(window.myRole === 'gm') {
-                const phase = window.gameState.phase;
-                const pKeys = Object.keys(window.playersData || {});
-                document.getElementById('gm-total-count').innerText = pKeys.length;
-                
-                const phaseNames = { lobby:'대기실', s1:'1단계(이슬비)', s2:'2단계(소나기)', s3:'3단계(장대비)', s4:'4단계(폭우/전적무능력)', s5:'5단계(은혜 채워짐)' };
-                document.getElementById('gm-current-phase').innerText = phaseNames[phase] || phase;
-
-                const list = document.getElementById('gm-player-list');
-                list.innerHTML = '';
-                
-                // 랭킹순으로 보여주기
-                let ranking = pKeys.map(uid => ({ name: window.playersData[uid].name, score: window.playersData[uid].score || 0 }));
-                ranking.sort((a,b) => b.score - a.score);
-
-                ranking.forEach((p) => {
-                    let color = p.score >= 70 ? 'text-green-600' : (p.score >= 30 ? 'text-orange-500' : 'text-red-600');
-                    list.innerHTML += `
-                        <div class="p-3 rounded-xl flex justify-between items-center bg-slate-50 border border-slate-200">
-                            <div class="font-bold text-slate-800">${p.name}</div>
-                            <div class="font-black ${color}">${p.score}%</div>
-                        </div>
-                    `;
-                });
+            
+            // GM UI 업데이트
+            if (window.myRole === 'gm') {
+                document.getElementById('gm-player-count').innerText = Object.keys(window.playersData).length;
+                document.getElementById('gm-current-phase').innerText = phase;
             }
         }
 
-        window.setPhase = async (newPhase) => { await setDoc(stateDocRef, { phase: newPhase }, { merge: true }); };
+        // 로그인 버튼 클릭
+        document.getElementById('btn-join').addEventListener('click', async () => {
+            const nameInput = document.getElementById('player-name').value.trim();
+            if (!nameInput) return;
+
+            if (nameInput.toLowerCase() === 'gm') {
+                window.myRole = 'gm';
+                switchScreen('screen-gm');
+            } else {
+                window.myName = nameInput;
+                window.myRole = 'player';
+                window.myScore = 100;
+                isPlaying = true;
+                
+                // 플레이어 데이터 초기 생성
+                await setDoc(doc(playersColRef, window.myUid), {
+                    name: window.myName,
+                    score: 100
+                });
+
+                resizeCanvas();
+                switchScreen('screen-player');
+                document.getElementById('p-name-disp').innerText = window.myName;
+                
+                // 자이로센서 권한 요청 (iOS 대응)
+                if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                    DeviceOrientationEvent.requestPermission()
+                        .then(response => { if (response == 'granted') window.addEventListener('deviceorientation', handleOrientation); })
+                        .catch(console.error);
+                } else {
+                    window.addEventListener('deviceorientation', handleOrientation);
+                }
+                
+                startGameLoop();
+            }
+        });
+
+        // 스마트폰 기울기 센서 처리 (좌우)
+        let cupLeft = 50; // 기본 위치 50%
+        function handleOrientation(event) {
+            if(!isPlaying) return;
+            let gamma = event.gamma; // 좌우 기울기 (-90 ~ 90)
+            if (gamma > 45) gamma = 45;
+            if (gamma < -45) gamma = -45;
+            
+            // gamma 값을 화면 10% ~ 90% 위치로 변환
+            cupLeft = 50 + (gamma / 45) * 40; 
+            document.getElementById('cup-container').style.left = cupLeft + '%';
+        }
+
+        // 터치 지원 (자이로센서가 없는 기기나 PC 테스트용)
+        let isDragging = false;
+        document.getElementById('screen-player').addEventListener('touchstart', (e) => { isDragging = true; updateCupPosByTouch(e.touches[0].clientX); });
+        document.getElementById('screen-player').addEventListener('touchmove', (e) => { if(isDragging) updateCupPosByTouch(e.touches[0].clientX); });
+        document.getElementById('screen-player').addEventListener('touchend', () => { isDragging = false; });
+        document.getElementById('screen-player').addEventListener('mousedown', (e) => { isDragging = true; updateCupPosByTouch(e.clientX); });
+        document.getElementById('screen-player').addEventListener('mousemove', (e) => { if(isDragging) updateCupPosByTouch(e.clientX); });
+        document.getElementById('screen-player').addEventListener('mouseup', () => { isDragging = false; });
+
+        function updateCupPosByTouch(clientX) {
+            cupLeft = (clientX / window.innerWidth) * 100;
+            if(cupLeft < 10) cupLeft = 10;
+            if(cupLeft > 90) cupLeft = 90;
+            document.getElementById('cup-container').style.left = cupLeft + '%';
+        }
+
+        // --- 메인 게임 루프 (플레이어용) ---
+        function startGameLoop() {
+            if(gameLoopId) cancelAnimationFrame(gameLoopId);
+            let prevTime = performance.now();
+            
+            function loop(currentTime) {
+                if(!isPlaying) return;
+                
+                const dt = currentTime - prevTime;
+                prevTime = currentTime;
+                
+                const phase = window.gameState.phase;
+                if(phase && diffConfig[phase]) {
+                    const cfg = diffConfig[phase];
+                    
+                    // 피 생성
+                    if(Math.random() < cfg.spawnChance) {
+                        drops.push({
+                            x: Math.random() * canvas.width,
+                            y: -20,
+                            size: Math.random() * 8 + 4,
+                            speed: cfg.speed * (dt/16) // 프레임 보정
+                        });
+                    }
+
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    
+                    const cupContainer = document.getElementById('cup-container');
+                    const cupRect = cupContainer.getBoundingClientRect();
+                    
+                    let scoreChanged = false;
+
+                    // 5단계는 모든 피가 성배로 빨려들어감
+                    const isPhase5 = (phase === 's5');
+
+                    for(let i=drops.length-1; i>=0; i--) {
+                        let d = drops[i];
+                        
+                        if (isPhase5) {
+                            // 성배 중앙 좌표로 자석처럼 끌어당김
+                            const targetX = cupRect.left + cupRect.width/2;
+                            const targetY = cupRect.top + 20; // 컵 상단 부근
+                            
+                            d.x += (targetX - d.x) * 0.05;
+                            d.y += (targetY - d.y) * 0.05;
+                        } else {
+                            d.y += d.speed * 10; // 픽셀 속도 보정
+                        }
+
+                        // 그리기 (5단계는 황금빛, 나머지는 붉은 피)
+                        ctx.beginPath();
+                        ctx.fillStyle = isPhase5 ? '#facc15' : '#ef4444';
+                        ctx.shadowBlur = isPhase5 ? 10 : 0;
+                        ctx.shadowColor = isPhase5 ? '#eab308' : 'transparent';
+                        ctx.arc(d.x, d.y, d.size, 0, Math.PI*2);
+                        ctx.fill();
+
+                        // 충돌 판정 및 화면 벗어남 판정
+                        if(d.y > canvas.height) {
+                            // 놓침 (바닥에 떨어짐)
+                            if(!isPhase5 && phase !== 'lobby') {
+                                window.myScore -= cfg.penalty;
+                                if(window.myScore < 0) window.myScore = 0;
+                                scoreChanged = true;
+                            }
+                            drops.splice(i, 1);
+                        } 
+                        else if (d.y > cupRect.top && d.y < cupRect.bottom && d.x > cupRect.left && d.x < cupRect.right) {
+                            // 받음 (컵에 들어감)
+                            if(isPhase5) {
+                                // 5단계는 받으면 점수가 팍팍 오름
+                                window.myScore += 2;
+                                if(window.myScore > 100) window.myScore = 100;
+                                scoreChanged = true;
+                            }
+                            drops.splice(i, 1);
+                        }
+                    }
+
+                    // 5단계일 경우 계속 100%를 향해 자동으로도 조금씩 회복
+                    if(isPhase5 && window.myScore < 100) {
+                        window.myScore += 0.5;
+                        if(window.myScore > 100) window.myScore = 100;
+                        scoreChanged = true;
+                    }
+
+                    // DB 동기화 (트래픽 방지를 위해 0.5초마다 1번씩만 전송)
+                    if(scoreChanged) {
+                        document.getElementById('cup-fill').style.height = window.myScore + '%';
+                        document.getElementById('p-score-disp').innerText = Math.floor(window.myScore) + '%';
+                        
+                        const now = Date.now();
+                        if(now - lastDbSync > 500) {
+                            setDoc(doc(playersColRef, window.myUid), { score: window.myScore }, { merge: true });
+                            lastDbSync = now;
+                        }
+                    }
+                } else {
+                    ctx.clearRect(0, 0, canvas.width, canvas.height); // 대기실일땐 비움
+                }
+
+                gameLoopId = requestAnimationFrame(loop);
+            }
+            gameLoopId = requestAnimationFrame(loop);
+        }
+
+        // --- GM 기능 ---
+        window.setPhase = async (newPhase) => { 
+            await setDoc(stateDocRef, { phase: newPhase }, { merge: true }); 
+        };
         
         window.resetGame = async () => { 
-            if(confirm("모든 참가자를 내보내고 게임을 초기화하시겠습니까?")) { 
-                await setDoc(stateDocRef, { phase: 'lobby' });
-                const pKeys = Object.keys(window.playersData || {});
-                for(let uid of pKeys) {
-                    await deleteDoc(doc(playersColRef, uid));
-                }
-            } 
+            // iframe 내장 alert/confirm 차단 문제 해결: 묻지 않고 즉시 실행
+            console.log("초기화 및 강제퇴장 실행");
+            
+            // 1. 상태를 대기실로 변경
+            await setDoc(stateDocRef, { phase: 'lobby' });
+            
+            // 2. 현재 등록된 모든 참가자 문서 삭제 (강제 퇴장 트리거)
+            const pKeys = Object.keys(window.playersData || {});
+            
+            // 병렬로 빠르게 삭제 처리
+            const deletePromises = pKeys.map(uid => deleteDoc(doc(playersColRef, uid)));
+            await Promise.all(deletePromises);
+            
+            console.log(`${pKeys.length}명 퇴장 완료`);
         };
+
+        window.addEventListener('DOMContentLoaded', initAuth);
     </script>
 </body>
 </html>
