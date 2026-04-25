@@ -14,8 +14,8 @@
         
         /* 성배 디자인 */
         #cup-container { position: absolute; bottom: 10%; left: 50%; transform: translateX(-50%); width: 100px; height: 120px; z-index: 20; transition: left 0.1s ease-out; }
-        .cup-body { width: 100%; height: 100%; border: 4px solid #cbd5e1; border-top: none; border-radius: 0 0 40px 40px; position: relative; overflow: hidden; background: rgba(255,255,255,0.1); backdrop-filter: blur(5px); box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
-        #cup-fill { position: absolute; bottom: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(to top, #b91c1c, #ef4444); transition: height 0.3s ease; }
+        .cup-body { width: 100%; height: 100%; border: 4px solid #cbd5e1; border-top: none; border-radius: 0 0 40px 40px; position: relative; overflow: hidden; background: rgba(255,255,255,0.1); backdrop-filter: blur(5px); box-shadow: 0 10px 25px rgba(0,0,0,0.5); transition: border-color 1s ease, box-shadow 1s ease; }
+        #cup-fill { position: absolute; bottom: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(to top, #b91c1c, #ef4444); transition: height 0.3s ease, background 1s ease; }
         
         /* 4단계 화면 흔들림 */
         @keyframes shake {
@@ -26,27 +26,56 @@
         }
         .shaking { animation: shake 0.1s infinite; }
 
-        /* 5단계 은혜 채워짐 연출 (황금빛) */
+        /* 5단계 은혜 가득참 연출 (황금빛) */
         .grace-glow #cup-fill { background: linear-gradient(to top, #eab308, #facc15) !important; box-shadow: 0 0 30px #facc15; }
         .grace-glow .cup-body { border-color: #fef08a; box-shadow: 0 0 50px rgba(250, 204, 21, 0.6); }
+
+        /* 5단계 멘트 페이드 인 */
+        #p-grace-overlay {
+            opacity: 0;
+            transition: opacity 2s ease-in-out;
+        }
+        #p-grace-overlay.show-grace {
+            opacity: 1;
+        }
 
         canvas { position: absolute; top: 0; left: 0; z-index: 10; pointer-events: none; }
         .ui-layer { position: relative; z-index: 30; pointer-events: none; }
         .interactive-ui { pointer-events: auto; }
+        
+        /* GM 모달 */
+        #gm-login-modal { display: none; background: rgba(0,0,0,0.8); }
+        #gm-login-modal.active { display: flex; }
     </style>
 </head>
 <body>
 
     <!-- 1. 로그인 (대기) 화면 -->
-    <div id="screen-login" class="screen active flex-col items-center justify-center p-6 text-center">
+    <div id="screen-login" class="screen active flex-col items-center justify-center p-6 text-center relative">
         <h1 class="text-5xl font-black text-red-500 mb-2 drop-shadow-md tracking-tighter">TU<span class="text-red-400">L</span>IP</h1>
         <h2 class="text-3xl font-bold text-slate-300 mb-8">제한적 속죄</h2>
         
-        <div class="bg-slate-800 p-8 rounded-3xl w-full max-w-sm border border-slate-700 shadow-2xl">
+        <div class="bg-slate-800 p-8 rounded-3xl w-full max-w-sm border border-slate-700 shadow-2xl z-10">
             <input type="text" id="player-name" placeholder="이름을 입력하세요" class="w-full text-center text-2xl p-4 rounded-xl mb-6 bg-slate-900 border border-slate-600 text-white placeholder-slate-500 focus:outline-none focus:border-red-500 transition-colors" maxlength="8">
             <button id="btn-join" class="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-4 rounded-xl text-xl transition-colors shadow-lg active:scale-95">입장하기</button>
         </div>
-        <p class="text-slate-500 mt-6 text-sm">GM 모드로 진입하려면 이름에 'gm'을 입력하세요.</p>
+        
+        <!-- GM 설정 버튼 (우측 하단) -->
+        <button onclick="document.getElementById('gm-login-modal').classList.add('active')" class="absolute bottom-6 right-6 text-slate-600 hover:text-slate-400 text-2xl p-2 z-10">
+            <i class="fas fa-cog"></i>
+        </button>
+    </div>
+
+    <!-- GM 로그인 모달 -->
+    <div id="gm-login-modal" class="absolute inset-0 z-50 flex-col items-center justify-center p-6">
+        <div class="bg-slate-800 p-8 rounded-2xl w-full max-w-sm border border-slate-600 shadow-2xl">
+            <h3 class="text-xl font-bold text-white mb-4 text-center">GM 로그인</h3>
+            <input type="password" id="gm-password" placeholder="비밀번호 입력" class="w-full text-center text-xl p-3 rounded-lg mb-4 bg-slate-900 border border-slate-600 text-white focus:outline-none focus:border-red-500">
+            <div class="flex gap-2">
+                <button onclick="document.getElementById('gm-login-modal').classList.remove('active')" class="flex-1 bg-slate-600 hover:bg-slate-500 text-white font-bold py-3 rounded-lg">취소</button>
+                <button onclick="tryGmServerLogin()" class="flex-1 bg-red-600 hover:bg-red-500 text-white font-bold py-3 rounded-lg">접속</button>
+            </div>
+        </div>
     </div>
 
     <!-- 2. 플레이어 화면 -->
@@ -81,10 +110,11 @@
             </div>
         </div>
 
-        <!-- 5단계 불가항력적 은혜 오버레이 -->
-        <div id="p-grace-overlay" class="absolute inset-0 bg-yellow-500 bg-opacity-30 z-40 hidden flex-col items-center justify-center backdrop-blur-sm">
+        <!-- 5단계 완전한 속죄 오버레이 (페이드 인) -->
+        <div id="p-grace-overlay" class="absolute inset-0 bg-red-900 bg-opacity-80 z-40 hidden flex-col items-center justify-center backdrop-blur-md">
             <div class="text-6xl text-yellow-300 mb-4 drop-shadow-[0_0_20px_rgba(253,224,71,1)]"><i class="fas fa-cross"></i></div>
-            <h2 class="text-4xl font-black text-white drop-shadow-lg text-center leading-tight">불가항력적<br><span class="text-yellow-300">은혜!</span></h2>
+            <h2 class="text-5xl font-black text-white drop-shadow-lg text-center leading-tight">완전한<br><span class="text-yellow-300">속죄!</span></h2>
+            <p class="text-slate-200 mt-4 text-lg">우리의 공로가 아닌, 오직 그리스도의 피로.</p>
         </div>
     </div>
 
@@ -115,7 +145,7 @@
                 <span class="text-xl"><i class="fas fa-skull-crossbones mr-2 text-red-400"></i>4단계: 폭우 (전적 무능력)</span>
             </button>
             <button onclick="setPhase('s5')" class="bg-yellow-600 hover:bg-yellow-500 text-yellow-50 font-bold py-5 rounded-xl border-2 border-yellow-400 flex justify-between px-6 items-center transform scale-105 shadow-lg">
-                <span class="text-xl"><i class="fas fa-cross mr-2 text-yellow-300"></i>5단계: 불가항력적 은혜 선포</span>
+                <span class="text-xl"><i class="fas fa-cross mr-2 text-yellow-300"></i>5단계: 완전한 속죄 선포</span>
             </button>
         </div>
         
@@ -167,7 +197,7 @@
         let gameLoopId = null;
         let lastDbSync = 0;
         let isPlaying = false;
-        let graceTimeout = null; // 5단계 멘트 지연용 타이머
+        let graceTriggered = false; // 5단계 연출 트리거 방지
         
         // 캔버스 사이즈 조정
         const canvas = document.getElementById('game-canvas');
@@ -176,13 +206,13 @@
         window.addEventListener('resize', resizeCanvas);
 
         // 난이도 설정 (spawnChance: 프레임당 생성확률, speed: 떨어지는 속도(%/프레임), penalty: 놓쳤을때 깎이는 점수)
-        // 1단계 아주 쉽게 조정!
+        // 1~3단계 페널티 아주 낮음
         const diffConfig = {
-            's1': { spawnChance: 0.008, speed: 0.25, penalty: 0.1 }, // 매우 느리고 적게 떨어짐, 패널티 미미함
+            's1': { spawnChance: 0.008, speed: 0.25, penalty: 0.1 }, 
             's2': { spawnChance: 0.03, speed: 0.6, penalty: 0.2 },  
             's3': { spawnChance: 0.06, speed: 0.9, penalty: 0.2 },  
             's4': { spawnChance: 0.8, speed: 1.5, penalty: 2 },   // 멘붕 (엄청난 양의 피)
-            's5': { spawnChance: 0.5, speed: 1.2, penalty: 0 }    // 은혜 채워짐
+            's5': { spawnChance: 0.5, speed: 1.2, penalty: 0 }    // 완전한 속죄 (자석처럼 빨려들어감)
         };
 
         const initAuth = async () => {
@@ -215,14 +245,14 @@
                 
                 updateUIBasedOnRole();
                 
-                // 플레이어인데 내 데이터가 사라졌다면(GM 전체 초기화 시) 로그인 화면으로 강퇴
-                // iframe 정책상 alert() 금지. 그냥 바로 튕겨냅니다.
+                // GM 전체 초기화 시 참가자 강제 퇴장
                 if (window.myRole === 'player' && isPlaying && !window.playersData[window.myUid]) {
                     console.log("강제 퇴장 처리됨");
                     window.myRole = null;
                     isPlaying = false;
+                    graceTriggered = false;
                     if(gameLoopId) { cancelAnimationFrame(gameLoopId); gameLoopId = null; }
-                    document.getElementById('player-name').value = ''; // 이름 비우기
+                    document.getElementById('player-name').value = ''; 
                     switchScreen('screen-login');
                 }
             });
@@ -230,11 +260,24 @@
 
         window.switchScreen = (id) => { document.querySelectorAll('.screen').forEach(s => s.classList.remove('active')); document.getElementById(id).classList.add('active'); };
 
+        // GM 로그인 처리
+        window.tryGmServerLogin = () => {
+            const pw = document.getElementById('gm-password').value;
+            if(pw === '1004') {
+                window.myRole = 'gm';
+                document.getElementById('gm-login-modal').classList.remove('active');
+                document.getElementById('gm-password').value = '';
+                switchScreen('screen-gm');
+            } else {
+                // iframe 환경 고려, 직접 모달 텍스트 변경 등으로 경고를 줄 수 있으나 간단하게 값 비우기로 대체
+                document.getElementById('gm-password').value = '';
+            }
+        }
+
         // UI 업데이트
         function updateUIBasedOnRole() {
             const phase = window.gameState.phase || 'lobby';
 
-            // 플레이어 UI 업데이트
             if (window.myRole === 'player') {
                 const pData = window.playersData[window.myUid];
                 if (pData) {
@@ -249,18 +292,20 @@
                 const cupContainer = document.getElementById('cup-container');
                 const graceOverlay = document.getElementById('p-grace-overlay');
 
-                graceOverlay.classList.add('hidden');
-                graceOverlay.classList.remove('flex');
-                gameArea.classList.remove('shaking', 'grace-glow');
-                cupContainer.classList.remove('hidden');
+                if(phase !== 's5') {
+                    graceOverlay.classList.add('hidden');
+                    graceOverlay.classList.remove('flex', 'show-grace');
+                    gameArea.classList.remove('grace-glow');
+                    graceTriggered = false;
+                }
                 
-                // 이전 딜레이 타이머가 있다면 초기화
-                if(graceTimeout) clearTimeout(graceTimeout);
+                gameArea.classList.remove('shaking');
+                cupContainer.classList.remove('hidden');
 
                 if (phase === 'lobby') {
                     instTitle.innerText = "대기 중"; instTitle.className = "text-3xl font-black text-white mb-2";
                     instDesc.innerText = "화면을 주목해 주세요.";
-                    drops = []; // 피 비우기
+                    drops = []; 
                 } 
                 else if (phase === 's1' || phase === 's2' || phase === 's3') {
                     instTitle.innerText = "스마트폰을 기울이세요!"; instTitle.className = "text-3xl font-black text-blue-300 mb-2";
@@ -269,80 +314,66 @@
                 else if (phase === 's4') {
                     instTitle.innerText = "감당할 수 없는 폭우!!"; instTitle.className = "text-3xl font-black text-red-500 drop-shadow-[0_0_10px_rgba(239,68,68,0.8)]";
                     instDesc.innerHTML = "당신의 능력으로는<br>이 많은 은혜를 다 받을 수 없습니다!";
-                    gameArea.classList.add('shaking'); // 화면 흔들림 효과
+                    gameArea.classList.add('shaking'); 
                 }
                 else if (phase === 's5') {
                     instTitle.innerText = ""; instDesc.innerText = "";
-                    gameArea.classList.add('grace-glow'); // 황금빛 성배 연출
-                    
-                    // 5단계: 은혜가 중앙으로 빨려들어가는 것을 4초간 보여준 뒤 멘트 표시
-                    graceTimeout = setTimeout(() => {
-                        if(window.gameState.phase === 's5') {
-                            graceOverlay.classList.remove('hidden');
-                            graceOverlay.classList.add('flex');
-                        }
-                    }, 4000);
+                    // 5단계 연출은 게임 루프 내에서 점수가 100이 될 때 실행됨
                 }
             }
             
-            // GM UI 업데이트
             if (window.myRole === 'gm') {
                 document.getElementById('gm-player-count').innerText = Object.keys(window.playersData).length;
                 document.getElementById('gm-current-phase').innerText = phase;
             }
         }
 
-        // 로그인 버튼 클릭
+        // 로그인 버튼 클릭 (일반 플레이어)
         document.getElementById('btn-join').addEventListener('click', async () => {
             const nameInput = document.getElementById('player-name').value.trim();
             if (!nameInput) return;
 
-            if (nameInput.toLowerCase() === 'gm') {
-                window.myRole = 'gm';
-                switchScreen('screen-gm');
-            } else {
-                window.myName = nameInput;
-                window.myRole = 'player';
-                window.myScore = 100;
-                isPlaying = true;
-                
-                // 플레이어 데이터 초기 생성
-                await setDoc(doc(playersColRef, window.myUid), {
-                    name: window.myName,
-                    score: 100
-                });
+            window.myName = nameInput;
+            window.myRole = 'player';
+            window.myScore = 100;
+            isPlaying = true;
+            graceTriggered = false;
+            
+            // 플레이어 데이터 초기 생성
+            await setDoc(doc(playersColRef, window.myUid), {
+                name: window.myName,
+                score: 100
+            });
 
-                resizeCanvas();
-                switchScreen('screen-player');
-                document.getElementById('p-name-disp').innerText = window.myName;
-                
-                // 자이로센서 권한 요청 (iOS 대응)
-                if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-                    DeviceOrientationEvent.requestPermission()
-                        .then(response => { if (response == 'granted') window.addEventListener('deviceorientation', handleOrientation); })
-                        .catch(console.error);
-                } else {
-                    window.addEventListener('deviceorientation', handleOrientation);
-                }
-                
-                startGameLoop();
+            resizeCanvas();
+            switchScreen('screen-player');
+            document.getElementById('p-name-disp').innerText = window.myName;
+            
+            // 자이로센서 권한 요청
+            if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                DeviceOrientationEvent.requestPermission()
+                    .then(response => { if (response == 'granted') window.addEventListener('deviceorientation', handleOrientation); })
+                    .catch(console.error);
+            } else {
+                window.addEventListener('deviceorientation', handleOrientation);
             }
+            
+            startGameLoop();
         });
 
         // 스마트폰 기울기 센서 처리 (좌우)
-        let cupLeft = 50; // 기본 위치 50%
+        let cupLeft = 50; 
         function handleOrientation(event) {
             if(!isPlaying) return;
-            let gamma = event.gamma; // 좌우 기울기 (-90 ~ 90)
+            let gamma = event.gamma; 
             if (gamma > 45) gamma = 45;
             if (gamma < -45) gamma = -45;
             
-            // gamma 값을 화면 10% ~ 90% 위치로 변환
             cupLeft = 50 + (gamma / 45) * 40; 
             document.getElementById('cup-container').style.left = cupLeft + '%';
         }
 
-        // 터치 지원 (자이로센서가 없는 기기나 PC 테스트용)
+        // 터치 지원 (PC 테스트용)
         let isDragging = false;
         document.getElementById('screen-player').addEventListener('touchstart', (e) => { isDragging = true; updateCupPosByTouch(e.touches[0].clientX); });
         document.getElementById('screen-player').addEventListener('touchmove', (e) => { if(isDragging) updateCupPosByTouch(e.touches[0].clientX); });
@@ -358,7 +389,7 @@
             document.getElementById('cup-container').style.left = cupLeft + '%';
         }
 
-        // --- 메인 게임 루프 (플레이어용) ---
+        // --- 메인 게임 루프 (플레이어용) - 최적화 적용 ---
         function startGameLoop() {
             if(gameLoopId) cancelAnimationFrame(gameLoopId);
             let prevTime = performance.now();
@@ -379,7 +410,7 @@
                             x: Math.random() * canvas.width,
                             y: -20,
                             size: Math.random() * 8 + 4,
-                            speed: cfg.speed * (dt/16) // 프레임 보정
+                            speed: cfg.speed * (dt/16) 
                         });
                     }
 
@@ -389,74 +420,95 @@
                     const cupRect = cupContainer.getBoundingClientRect();
                     
                     let scoreChanged = false;
-
-                    // 5단계는 모든 피가 성배로 빨려들어감
                     const isPhase5 = (phase === 's5');
 
-                    for(let i=drops.length-1; i>=0; i--) {
+                    // 버벅임 방지를 위한 역순 순회 및 삭제 안전 처리
+                    for(let i = drops.length - 1; i >= 0; i--) {
                         let d = drops[i];
+                        let removeDrop = false;
                         
                         if (isPhase5) {
-                            // 성배 중앙 좌표로 자석처럼 끌어당김
+                            // 5단계: 빨간 피가 중앙 성배로 빨려들어감
                             const targetX = cupRect.left + cupRect.width/2;
-                            const targetY = cupRect.top + 20; // 컵 상단 부근
+                            const targetY = cupRect.top + 20; 
                             
-                            d.x += (targetX - d.x) * 0.05;
-                            d.y += (targetY - d.y) * 0.05;
+                            d.x += (targetX - d.x) * 0.08;
+                            d.y += (targetY - d.y) * 0.08;
                         } else {
-                            d.y += d.speed * 10; // 픽셀 속도 보정
+                            d.y += d.speed * 10; 
                         }
 
-                        // 그리기 (5단계는 황금빛, 나머지는 붉은 피)
+                        // 그리기 (1~5단계 모두 피는 빨간색)
                         ctx.beginPath();
-                        ctx.fillStyle = isPhase5 ? '#facc15' : '#ef4444';
-                        ctx.shadowBlur = isPhase5 ? 10 : 0;
-                        ctx.shadowColor = isPhase5 ? '#eab308' : 'transparent';
+                        ctx.fillStyle = '#ef4444'; 
+                        ctx.shadowBlur = isPhase5 ? 5 : 0;
+                        ctx.shadowColor = isPhase5 ? '#fca5a5' : 'transparent';
                         ctx.arc(d.x, d.y, d.size, 0, Math.PI*2);
                         ctx.fill();
 
-                        // 충돌 판정 및 화면 벗어남 판정
-                        if(d.y > canvas.height) {
-                            // 놓침 (바닥에 떨어짐)
+                        // 충돌 및 화면 밖 판정
+                        if(d.y > canvas.height + 20) {
                             if(!isPhase5 && phase !== 'lobby') {
                                 window.myScore -= cfg.penalty;
                                 if(window.myScore < 0) window.myScore = 0;
                                 scoreChanged = true;
                             }
-                            drops.splice(i, 1);
+                            removeDrop = true;
                         } 
                         else if (d.y > cupRect.top && d.y < cupRect.bottom && d.x > cupRect.left && d.x < cupRect.right) {
-                            // 받음 (컵에 들어감)
                             if(isPhase5) {
-                                // 5단계는 받으면 점수가 팍팍 오름
-                                window.myScore += 2;
+                                window.myScore += 1; // 5단계 점수 상승
                                 if(window.myScore > 100) window.myScore = 100;
                                 scoreChanged = true;
                             }
+                            removeDrop = true;
+                        }
+
+                        if(removeDrop) {
                             drops.splice(i, 1);
                         }
                     }
 
-                    // 5단계일 경우 계속 100%를 향해 자동으로도 조금씩 회복
-                    if(isPhase5 && window.myScore < 100) {
-                        window.myScore += 0.5;
-                        if(window.myScore > 100) window.myScore = 100;
-                        scoreChanged = true;
+                    // 5단계 자동 회복 및 최종 연출
+                    if(isPhase5) {
+                        if(window.myScore < 100) {
+                            window.myScore += 0.3; // 자동 회복
+                            if(window.myScore > 100) window.myScore = 100;
+                            scoreChanged = true;
+                        }
+                        
+                        // 점수가 100% 도달 시 연출 트리거
+                        if(window.myScore >= 100 && !graceTriggered) {
+                            graceTriggered = true;
+                            
+                            // 1. 성배 황금빛으로 변경
+                            document.getElementById('screen-player').classList.add('grace-glow');
+                            
+                            // 2. 멘트 서서히 등장 (페이드 인)
+                            const graceOverlay = document.getElementById('p-grace-overlay');
+                            graceOverlay.classList.remove('hidden');
+                            graceOverlay.classList.add('flex');
+                            
+                            // 약간의 딜레이 후 opacity 1 부여하여 CSS transition 실행
+                            setTimeout(() => {
+                                graceOverlay.classList.add('show-grace');
+                            }, 100);
+                        }
                     }
 
-                    // DB 동기화 (트래픽 방지를 위해 0.5초마다 1번씩만 전송)
+                    // DB 동기화 (네트워크 부하 감소를 위해 0.8초 딜레이)
                     if(scoreChanged) {
                         document.getElementById('cup-fill').style.height = window.myScore + '%';
                         document.getElementById('p-score-disp').innerText = Math.floor(window.myScore) + '%';
                         
                         const now = Date.now();
-                        if(now - lastDbSync > 500) {
+                        if(now - lastDbSync > 800) {
                             setDoc(doc(playersColRef, window.myUid), { score: window.myScore }, { merge: true });
                             lastDbSync = now;
                         }
                     }
                 } else {
-                    ctx.clearRect(0, 0, canvas.width, canvas.height); // 대기실일땐 비움
+                    ctx.clearRect(0, 0, canvas.width, canvas.height); 
                 }
 
                 gameLoopId = requestAnimationFrame(loop);
@@ -470,20 +522,12 @@
         };
         
         window.resetGame = async () => { 
-            // iframe 내장 alert/confirm 차단 문제 해결: 묻지 않고 즉시 실행
             console.log("초기화 및 강제퇴장 실행");
-            
-            // 1. 상태를 대기실로 변경
             await setDoc(stateDocRef, { phase: 'lobby' });
             
-            // 2. 현재 등록된 모든 참가자 문서 삭제 (강제 퇴장 트리거)
             const pKeys = Object.keys(window.playersData || {});
-            
-            // 병렬로 빠르게 삭제 처리
             const deletePromises = pKeys.map(uid => deleteDoc(doc(playersColRef, uid)));
             await Promise.all(deletePromises);
-            
-            console.log(`${pKeys.length}명 퇴장 완료`);
         };
 
         window.addEventListener('DOMContentLoaded', initAuth);
