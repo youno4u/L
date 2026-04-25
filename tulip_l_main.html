@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>TULIP: 제한적 속죄 (L)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;700;900&display=swap');
+        body { font-family: 'Noto Sans KR', sans-serif; background-color: #f8fafc; touch-action: none; user-select: none; overflow: hidden; }
+        .screen { display: none !important; }
+        .screen.active { display: flex !important; flex-direction: column; flex-grow: 1; position: relative; height: 100vh; width: 100vw; }
+        
+        #game-area { position: relative; flex-grow: 1; background-color: #0f172a; overflow: hidden; border-top: 4px solid #334155; }
+        
+        #player-cup { position: absolute; bottom: 30px; width: 80px; height: 80px; margin-left: -40px; text-align: center; font-size: 4rem; color: #fbbf24; transition: left 0.1s ease-out; z-index: 20; text-shadow: 0 0 10px rgba(251,191,36,0.5); }
+        .cup-frozen { filter: brightness(0.5); }
+        
+        .blood-drop { position: absolute; color: #ef4444; text-shadow: 0 0 5px rgba(239,68,68,0.8); z-index: 10; display: flex; align-items: center; justify-content: center; }
+        
+        .stamp-anim { opacity: 0; transform: scale(3) rotate(-15deg); animation: stampDown 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+        @keyframes stampDown { to { opacity: 1; transform: scale(1) rotate(-15deg); } }
+    </style>
+</head>
+<body class="h-screen w-full text-slate-800 flex flex-col relative overflow-hidden">
+
+    <div id="loading-overlay" class="fixed inset-0 bg-slate-900 z-50 flex flex-col items-center justify-center text-white">
+        <i class="fas fa-tint fa-spin text-5xl text-red-500 mb-4" style="animation-duration: 3s;"></i>
+        <h2 class="text-xl font-bold">서버 접속 중...</h2>
+    </div>
+
+    <!-- SCREEN 0: 접속 -->
+    <div id="screen-login" class="screen items-center justify-center p-4">
+        <div class="bg-white p-8 rounded-3xl shadow-2xl max-w-md w-full text-center border border-red-200">
+            <h1 class="text-5xl font-black text-red-800 mb-2">TU<span class="text-6xl text-red-600">L</span>IP</h1>
+            <h2 class="text-3xl font-black text-slate-800 mb-2">제한적 속죄</h2>
+            <h3 class="text-lg font-bold text-slate-500 mb-8">Limited Atonement</h3>
+            
+            <div class="space-y-4">
+                <button onclick="showPlayerLogin()" class="w-full bg-red-600 hover:bg-red-700 text-white font-black py-5 rounded-2xl shadow-lg transition text-xl">
+                    <i class="fas fa-mobile-alt mr-2"></i> 참가자 입장
+                </button>
+                <div class="h-px bg-slate-200 my-4"></div>
+                <button onclick="checkGMAndSetRole()" class="w-full bg-slate-800 text-white font-bold py-4 rounded-xl shadow transition">
+                    <i class="fas fa-user-shield mr-2"></i> GM 통제실 🔒
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 참가자 이름 모달 -->
+    <div id="player-name-modal" class="hidden fixed inset-0 bg-slate-900 bg-opacity-80 z-50 flex items-center justify-center p-4">
+        <div class="bg-white p-8 rounded-2xl shadow-2xl max-w-sm w-full">
+            <h3 class="text-2xl font-black text-slate-800 mb-6 text-center">당신의 이름을 입력하세요</h3>
+            <input type="text" id="player-name-input" placeholder="실명 입력" class="w-full px-4 py-4 border-2 border-red-400 rounded-xl mb-4 font-black text-xl text-center">
+            <button onclick="joinAsPlayer()" class="w-full bg-red-600 text-white font-black py-4 rounded-xl shadow-lg text-lg">입장하기</button>
+            <button onclick="document.getElementById('player-name-modal').classList.add('hidden')" class="w-full mt-3 text-slate-500 py-2 font-bold">취소</button>
+        </div>
+    </div>
+
+    <!-- SCREEN 1: 참가자 화면 -->
+    <div id="screen-player" class="screen bg-slate-900 text-white">
+        <header class="bg-slate-800 p-4 shadow-md flex justify-between items-center z-20 relative">
+            <div class="font-bold text-lg text-slate-200"><span id="p-my-name">이름</span></div>
+            <div class="bg-slate-900 px-4 py-1.5 rounded-full text-sm font-bold shadow-inner border border-slate-700">
+                <!-- 🔥 내 화면에도 방울수 대신 퍼센트(%)로 표시되도록 변경 🔥 -->
+                <i class="fas fa-tint text-red-500 mr-1"></i> <span id="p-my-score" class="text-red-400 text-lg">0</span> %
+            </div>
+        </header>
+
+        <div id="p-sensor-request" class="absolute inset-0 z-30 flex flex-col items-center justify-center bg-slate-900 px-6 text-center pt-16">
+            <i class="fas fa-mobile-alt text-7xl text-slate-500 mb-6 animate-pulse"></i>
+            <h2 class="text-3xl font-black text-white mb-4">기울기 센서 준비</h2>
+            <p class="text-slate-400 font-bold mb-10 text-lg">스마트폰을 기울여서 은혜(피)를 받으세요.</p>
+            <button onclick="requestSensorPermission()" class="w-full bg-yellow-500 hover:bg-yellow-600 text-slate-900 font-black py-6 rounded-2xl text-2xl shadow-[0_0_20px_rgba(234,179,8,0.5)]">
+                센서 켜고 입장!
+            </button>
+        </div>
+
+        <div id="game-area" class="hidden">
+            <div id="p-instruction" class="absolute top-10 left-0 w-full text-center z-20 pointer-events-none px-4">
+                <h2 class="text-3xl font-black text-white drop-shadow-md" id="p-inst-title">대기 중</h2>
+                <p class="text-yellow-400 font-bold mt-2 text-lg drop-shadow" id="p-inst-desc">진행자의 지시를 기다리세요.</p>
+            </div>
+
+            <div id="player-cup" style="left: 50%;"><i class="fas fa-trophy"></i></div>
+            
+            <div id="drops-container" class="absolute inset-0"></div>
+
+            <div id="p-saved-overlay" class="hidden absolute inset-0 bg-black bg-opacity-80 z-40 flex-col items-center justify-center p-8 text-center">
+                <div class="stamp-anim border-[8px] border-red-600 text-red-600 p-6 rounded-3xl z-40 transform rotate-[-15deg] bg-black bg-opacity-70 shadow-[0_0_30px_rgba(239,68,68,0.5)]">
+                    <h1 class="text-5xl font-black tracking-tighter leading-none mb-2">TETELESTAI</h1>
+                    <h2 class="text-2xl font-bold border-t-4 border-red-600 pt-2">다 이루었다 (100%)</h2>
+                </div>
+                <p class="text-white text-xl font-bold mt-16 z-40 leading-relaxed">
+                    당신의 노력이 멈춘 곳에서,<br>
+                    <span class="text-yellow-400 text-2xl">완벽한 타겟팅(은혜)이 당신을 구원합니다.</span>
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- SCREEN 2: 진행자 (GM) 화면 -->
+    <div id="screen-gm" class="screen bg-slate-100">
+        <header class="bg-slate-900 text-white p-4 shadow-md flex justify-between items-center sticky top-0 z-20">
+            <h1 class="text-xl font-black text-red-400"><i class="fas fa-crown mr-2"></i>GM 통제실 (L)</h1>
+            <button onclick="resetGame()" class="bg-red-600 px-3 py-2 rounded-lg text-xs font-black shadow hover:bg-red-700">초기화</button>
+        </header>
+        
+        <div class="p-4 flex-grow grid grid-cols-1 lg:grid-cols-2 gap-4 pb-24 overflow-y-auto">
+            <div class="bg-white p-5 rounded-3xl shadow-lg border-t-8 border-red-600 flex flex-col">
+                <h2 class="font-black text-xl text-slate-800 mb-2">🎮 게임 단계 조작</h2>
+                <p class="text-sm font-bold text-slate-500 mb-4">현재: <span id="gm-current-phase" class="text-red-600 text-lg">대기 중</span></p>
+                
+                <div class="space-y-3 flex-grow flex flex-col">
+                    <button onclick="setPhase('s1')" class="py-3 bg-green-100 text-green-800 font-black text-lg rounded-xl shadow">1단계: 몸풀기 (할만함)</button>
+                    <button onclick="setPhase('s2')" class="py-3 bg-blue-100 text-blue-800 font-black text-lg rounded-xl shadow">2단계: 속도 증가 (조금 빠름)</button>
+                    <button onclick="setPhase('s3')" class="py-3 bg-orange-100 text-orange-800 font-black text-lg rounded-xl shadow">3단계: 초집중 (어? 될것같은데?)</button>
+                    <button onclick="setPhase('s4')" class="py-4 bg-slate-800 text-white font-black text-xl rounded-xl shadow border-2 border-red-500">4단계: 폭우 (절대 불가능, 한계 체감)</button>
+                    
+                    <div class="h-px bg-slate-200 my-1"></div>
+
+                    <button onclick="setPhase('s5')" class="py-6 bg-red-600 text-white font-black text-2xl rounded-xl shadow-xl animate-pulse">
+                        <i class="fas fa-cross mr-2"></i> 5단계: 속죄 (전원 은혜 구원)
+                    </button>
+                </div>
+            </div>
+
+            <div class="bg-white p-5 rounded-3xl shadow-lg border-t-8 border-slate-800 flex flex-col">
+                <h2 class="font-black text-lg border-b-2 border-slate-100 pb-3 mb-3">👥 접속자 (<span id="gm-player-count">0</span>명)</h2>
+                <div id="gm-player-list" class="flex-grow overflow-y-auto space-y-2 max-h-[350px]"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, collection, onSnapshot, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const myFirebaseConfig = {
+            apiKey: "AIzaSyCfyjgtiDVD4Wsd9iGb9tEdrOGFYxxN2Tw",
+            authDomain: "kingdomgenius.firebaseapp.com",
+            projectId: "kingdomgenius",
+            storageBucket: "kingdomgenius.firebasestorage.app",
+            messagingSenderId: "385557748196",
+            appId: "1:385557748196:web:457b999a38e4982f188ff1"
+        };
+        
+        let app, auth, db, stateDocRef, playersColRef;
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+        if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+            app = initializeApp(JSON.parse(__firebase_config)); db = getFirestore(app);
+            stateDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'tulip_l_state', 'main');
+            playersColRef = collection(db, 'artifacts', appId, 'public', 'data', 'tulip_l_players');
+        } else {
+            app = initializeApp(myFirebaseConfig); db = getFirestore(app);
+            stateDocRef = doc(db, 'kingdom_genius_games', 'tulip_l_room', 'data', 'state');
+            playersColRef = collection(db, 'kingdom_genius_games', 'tulip_l_room', 'players');
+        }
+        auth = getAuth(app);
+
+        window.myUid = null; window.myRole = null; 
+        window.gameState = { phase: 'lobby' };
+        window.playersData = {}; 
+        
+        let cupX = 50; 
+        let localScore = 0; // 이제 내부적으로는 퍼센트로 계산합니다 (0 ~ 100)
+        let isSensorActive = false;
+        let gameLoop = null;
+        let dropSpawner = null;
+        let activeDrops = [];
+
+        const initAuth = async () => {
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+                onAuthStateChanged(auth, (user) => {
+                    if (user) {
+                        window.myUid = user.uid;
+                        document.getElementById('loading-overlay').classList.add('hidden');
+                        switchScreen('screen-login');
+                        setupRealtimeListeners(user);
+                    }
+                });
+            } catch (error) { console.error(error); }
+        };
+
+        window.addEventListener('DOMContentLoaded', initAuth);
+
+        async function setupRealtimeListeners(user) {
+            if (!user) return;
+            onSnapshot(stateDocRef, (docSnap) => {
+                if (docSnap.exists()) { 
+                    const oldPhase = window.gameState?.phase;
+                    window.gameState = docSnap.data(); 
+                    if(oldPhase !== window.gameState.phase) applyPhaseLogic();
+                    updateUIBasedOnRole(); 
+                } else {
+                    setDoc(stateDocRef, { phase: 'lobby' }, { merge: true });
+                }
+            });
+
+            onSnapshot(playersColRef, (querySnapshot) => {
+                window.playersData = {};
+                querySnapshot.forEach((doc) => { window.playersData[doc.id] = doc.data(); });
+                
+                if (window.myRole === 'player' && window.myUid && !window.playersData[window.myUid]) {
+                    window.location.reload();
+                }
+                updateUIBasedOnRole();
+            });
+        }
+
+        window.switchScreen = (id) => { 
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active')); 
+            document.getElementById(id).classList.add('active'); 
+        };
+
+        window.checkGMAndSetRole = () => {
+            const pwd = prompt("비밀번호:");
+            if (pwd === "1004") { window.myRole = 'gm'; switchScreen('screen-gm'); updateUIBasedOnRole(); } 
+        };
+
+        window.showPlayerLogin = () => { document.getElementById('player-name-modal').classList.remove('hidden'); };
+
+        window.joinAsPlayer = async () => {
+            const name = document.getElementById('player-name-input').value.trim();
+            if(!name) return;
+            document.getElementById('player-name-modal').classList.add('hidden');
+            
+            try {
+                const myPlayerRef = doc(playersColRef, window.myUid);
+                await setDoc(myPlayerRef, { name: name, score: 0 }, { merge: true });
+            } catch(e) { return; }
+            
+            window.myRole = 'player';
+            document.getElementById('p-my-name').innerText = name; 
+            switchScreen('screen-player');
+        };
+
+        window.requestSensorPermission = () => {
+            if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                DeviceOrientationEvent.requestPermission().then(state => { startSensor(); }).catch(console.error);
+            } else { startSensor(); }
+        };
+
+        function startSensor() {
+            document.getElementById('p-sensor-request').classList.add('hidden');
+            document.getElementById('game-area').classList.remove('hidden');
+            document.getElementById('game-area').classList.add('flex', 'flex-col');
+            window.addEventListener('deviceorientation', handleOrientation);
+            isSensorActive = true;
+            
+            setInterval(() => {
+                if(window.myRole === 'player' && window.gameState.phase !== 'lobby' && window.gameState.phase !== 's5') {
+                    setDoc(doc(playersColRef, window.myUid), { score: localScore }, { merge: true });
+                }
+            }, 1000);
+        }
+
+        function handleOrientation(event) {
+            if(!isSensorActive || window.gameState.phase === 's5' || window.gameState.phase === 'lobby') return; 
+            let tiltX = event.gamma; 
+            if (tiltX > 90) tiltX = 90; if (tiltX < -90) tiltX = -90;
+            let targetX = ((tiltX + 45) / 90) * 100;
+            cupX = Math.max(5, Math.min(95, targetX));
+            document.getElementById('player-cup').style.left = cupX + '%';
+        }
+
+        function applyPhaseLogic() {
+            if(window.myRole !== 'player') return;
+            const phase = window.gameState.phase;
+            
+            clearInterval(dropSpawner); clearInterval(gameLoop);
+            document.getElementById('drops-container').innerHTML = '';
+            activeDrops = [];
+
+            let spawnRate = 0, speed = 0, size = 1;
+
+            if(phase === 'lobby') {
+                localScore = 0; cupX = 50; document.getElementById('player-cup').style.left = '50%';
+                document.getElementById('p-my-score').innerText = '0';
+                return;
+            } else if(phase === 's1') { spawnRate = 800; speed = 1.0; size = 1; }
+              else if(phase === 's2') { spawnRate = 400; speed = 1.8; size = 1; }
+              else if(phase === 's3') { spawnRate = 150; speed = 2.5; size = 0.8; }
+              else if(phase === 's4') { spawnRate = 20; speed = 6.0; size = 0.6; } // 폭우 (절망)
+              else if(phase === 's5') { 
+                  // 5단계: 은혜 (유도 미사일 1개)
+                  document.getElementById('player-cup').classList.add('cup-frozen'); // 센서 마비 시각화
+                  setTimeout(() => {
+                      spawnDrop(true, 3.0, 3.0); // 거대한 유도탄
+                      startGameLoop();
+                  }, 1000);
+                  return;
+              }
+
+            dropSpawner = setInterval(() => { spawnDrop(false, speed, size); }, spawnRate);
+            startGameLoop();
+        }
+
+        function spawnDrop(isGuided, speed, scale) {
+            const container = document.getElementById('drops-container');
+            const drop = document.createElement('i');
+            drop.className = 'fas fa-tint blood-drop';
+            let startX = isGuided ? 50 : Math.random() * 90 + 5;
+            
+            drop.style.left = startX + '%';
+            drop.style.top = '-10%';
+            drop.style.fontSize = (2 * scale) + 'rem';
+            
+            if(isGuided) {
+                drop.classList.add('text-yellow-400');
+                drop.style.textShadow = '0 0 30px rgba(234,179,8,1)';
+            }
+
+            container.appendChild(drop);
+            activeDrops.push({ el: drop, x: startX, y: -10, isGuided: isGuided, speed: speed });
+        }
+
+        function startGameLoop() {
+            const container = document.getElementById('drops-container');
+            const targetScore = 100; // 100% 가 만점
+            
+            gameLoop = setInterval(() => {
+                for (let i = activeDrops.length - 1; i >= 0; i--) {
+                    let drop = activeDrops[i];
+                    drop.y += drop.speed;
+                    
+                    if (drop.isGuided) {
+                        let dx = cupX - drop.x;
+                        drop.x += dx * 0.1; // 유도 로직
+                    }
+                    
+                    drop.el.style.top = drop.y + '%';
+                    drop.el.style.left = drop.x + '%';
+                    
+                    if (drop.y > 80 && drop.y < 95) { // 충돌 높이
+                        if (Math.abs(drop.x - cupX) < 15) { // X축 일치
+                            if(drop.isGuided) {
+                                localScore = 100; // 은혜 만땅 (100%)
+                                setTimeout(() => {
+                                    document.getElementById('p-saved-overlay').classList.remove('hidden');
+                                    document.getElementById('p-saved-overlay').classList.add('flex');
+                                }, 500);
+                            } else {
+                                // 일반 방울은 1~2% 정도 랜덤 상승
+                                localScore += Math.floor(Math.random() * 2) + 1;
+                                if(localScore > 99) localScore = 99; // 내 힘으로는 100% 절대 불가
+                            }
+                            document.getElementById('p-my-score').innerText = localScore;
+                            
+                            drop.el.className = 'fas fa-heart text-red-500 absolute z-10 transition-all duration-300';
+                            drop.el.style.transform = 'scale(1.5)';
+                            drop.el.style.opacity = '0';
+                            setTimeout(() => { if(container.contains(drop.el)) drop.el.remove(); }, 300);
+                            activeDrops.splice(i, 1);
+                            continue;
+                        }
+                    }
+                    
+                    if (drop.y > 110) {
+                        drop.el.remove();
+                        activeDrops.splice(i, 1);
+                    }
+                }
+            }, 30);
+        }
+
+        function updateUIBasedOnRole() {
+            if(!window.gameState) return;
+            if(window.myRole === 'player') updatePlayerUI();
+            if(window.myRole === 'gm') updateGMUI();
+        }
+
+        function updatePlayerUI() {
+            const phase = window.gameState.phase;
+            const instTitle = document.getElementById('p-inst-title');
+            const instDesc = document.getElementById('p-inst-desc');
+            const cup = document.getElementById('player-cup');
+
+            if(phase === 'lobby') {
+                instTitle.innerText = "은혜의 성배 준비";
+                instDesc.innerText = "스마트폰을 평평하게 들고 대기하세요.";
+                cup.classList.remove('cup-frozen');
+                document.getElementById('p-saved-overlay').classList.add('hidden');
+            } 
+            else if(phase === 's1' || phase === 's2' || phase === 's3') {
+                instTitle.innerText = "보혈을 받아라!";
+                instDesc.innerText = "스마트폰을 좌우로 기울여 100%를 향해 채우세요!";
+            }
+            else if(phase === 's4') {
+                instTitle.innerText = "한계 체감";
+                instTitle.className = "text-4xl font-black text-red-500 drop-shadow-md animate-pulse";
+                instDesc.innerText = "인간의 노력으로는 다 받아낼 수 없습니다!";
+            }
+            else if(phase === 's5') {
+                instTitle.innerText = "은혜의 개입";
+                instTitle.className = "text-3xl font-black text-yellow-500 drop-shadow-md";
+                instDesc.innerText = "인간의 능력이 마비되고, 완벽한 은혜가 찾아옵니다.";
+            }
+        }
+
+        function updateGMUI() {
+            const phase = window.gameState.phase;
+            const pKeys = Object.keys(window.playersData || {});
+            document.getElementById('gm-player-count').innerText = pKeys.length;
+            document.getElementById('gm-current-phase').innerText = phase;
+
+            const list = document.getElementById('gm-player-list');
+            list.innerHTML = '';
+            
+            let ranking = pKeys.map(uid => ({ name: window.playersData[uid].name, score: window.playersData[uid].score || 0 }));
+            ranking.sort((a,b) => b.score - a.score);
+
+            ranking.forEach((p, idx) => {
+                list.innerHTML += `
+                    <div class="p-3 rounded-xl flex justify-between items-center border bg-slate-50">
+                        <div class="font-black text-slate-800"><span class="text-slate-400 text-xs mr-2">${idx+1}위</span>${p.name}</div>
+                        <!-- 🔥 GM 화면도 방울수 대신 %로 표시 🔥 -->
+                        <div class="text-sm font-bold text-red-600">${p.score}%</div>
+                    </div>
+                `;
+            });
+        }
+
+        window.setPhase = async (newPhase) => {
+            await setDoc(stateDocRef, { phase: newPhase }, { merge: true });
+        };
+
+        window.resetGame = async () => {
+            if(confirm("모든 데이터를 지울까요?")) {
+                window.playersData = {}; updateUIBasedOnRole();
+                await setDoc(stateDocRef, { phase: 'lobby' });
+                const snap = await getDocs(playersColRef);
+                snap.forEach(d => deleteDoc(d.ref));
+            }
+        };
+    </script>
+</body>
+</html>
